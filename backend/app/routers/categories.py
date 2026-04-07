@@ -3,9 +3,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from ..models import Category
+from ..models import Category, User
 from ..schemas.category import CategoryCreate, CategoryOut, CategoryUpdate
-from ..utils.deps import get_current_user
+from ..utils.deps import get_current_user, require_manager_or_admin
 
 router = APIRouter(prefix="/categories", tags=["Categories"], dependencies=[Depends(get_current_user)])
 
@@ -17,7 +17,11 @@ async def list_categories(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/", response_model=CategoryOut, status_code=status.HTTP_201_CREATED)
-async def create_category(payload: CategoryCreate, db: AsyncSession = Depends(get_db)):
+async def create_category(
+    payload: CategoryCreate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_manager_or_admin),
+):
     category = Category(**payload.model_dump())
     db.add(category)
     await db.commit()
@@ -36,7 +40,10 @@ async def get_category(category_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.put("/{category_id}", response_model=CategoryOut)
 async def update_category(
-    category_id: int, payload: CategoryUpdate, db: AsyncSession = Depends(get_db)
+    category_id: int,
+    payload: CategoryUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_manager_or_admin),
 ):
     result = await db.execute(select(Category).where(Category.id == category_id))
     category = result.scalar_one_or_none()
@@ -50,7 +57,11 @@ async def update_category(
 
 
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_category(category_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_category(
+    category_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_manager_or_admin),
+):
     result = await db.execute(select(Category).where(Category.id == category_id))
     category = result.scalar_one_or_none()
     if not category:

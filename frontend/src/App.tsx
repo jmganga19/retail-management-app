@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import RequireAuth from './auth/RequireAuth'
+import RequireRoles from './auth/RequireRoles'
 import AppShell from './components/layout/AppShell'
 import CategoriesPage from './pages/CategoriesPage'
 import CustomersPage from './pages/CustomersPage'
@@ -12,6 +13,7 @@ import ProductsPage from './pages/ProductsPage'
 import ReportsPage from './pages/ReportsPage'
 import SalesPage from './pages/SalesPage'
 import SettingsPage from './pages/SettingsPage'
+import StockAuditPage from './pages/StockAuditPage'
 import UsersPage from './pages/UsersPage'
 
 export default function App() {
@@ -24,16 +26,66 @@ export default function App() {
           <Route path="/" element={<AppShell />}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
-            <Route path="categories" element={<CategoriesPage />} />
-            <Route path="products" element={<ProductsPage />} />
-            <Route path="reports" element={<ReportsPage />} />
+            <Route
+              path="reports"
+              element={
+                <RequireRoles allowed={['admin', 'manager']}>
+                  <ReportsPage />
+                </RequireRoles>
+              }
+            />
+            <Route
+              path="categories"
+              element={
+                <RequireRoles allowed={['admin', 'manager']}>
+                  <CategoriesPage />
+                </RequireRoles>
+              }
+            />
+            <Route
+              path="products"
+              element={
+                <RequireRoles allowed={['admin', 'manager']}>
+                  <ProductsPage />
+                </RequireRoles>
+              }
+            />
             <Route path="sales" element={<SalesPage />} />
             <Route path="sales/new" element={<NewSalePage />} />
             <Route path="orders" element={<OrdersPage />} />
             <Route path="preorders" element={<PreordersPage />} />
-            <Route path="customers" element={<CustomersPage />} />
-            <Route path="users" element={<UsersPage />} />
-            <Route path="settings" element={<SettingsPage />} />
+            <Route
+              path="customers"
+              element={
+                <RequireRoles allowed={['admin', 'manager']}>
+                  <CustomersPage />
+                </RequireRoles>
+              }
+            />
+            <Route
+              path="users"
+              element={
+                <RequireRoles allowed={['admin']}>
+                  <UsersPage />
+                </RequireRoles>
+              }
+            />
+            <Route
+              path="settings"
+              element={
+                <RequireRoles allowed={['admin']}>
+                  <SettingsPage />
+                </RequireRoles>
+              }
+            />
+            <Route
+              path="stock-audit"
+              element={
+                <RequireRoles allowed={['admin']}>
+                  <StockAuditPage />
+                </RequireRoles>
+              }
+            />
           </Route>
         </Route>
 

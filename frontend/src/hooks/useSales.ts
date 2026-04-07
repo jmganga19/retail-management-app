@@ -6,6 +6,7 @@ interface SaleFilters {
   date_from?: string
   date_to?: string
   payment_method?: string
+  q?: string
 }
 
 export const useSales = (filters: SaleFilters = {}) =>

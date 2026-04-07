@@ -3,9 +3,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from ..models import Customer
+from ..models import Customer, User
 from ..schemas.customer import CustomerCreate, CustomerOut, CustomerUpdate
-from ..utils.deps import get_current_user
+from ..utils.deps import get_current_user, require_manager_or_admin
 
 router = APIRouter(prefix="/customers", tags=["Customers"], dependencies=[Depends(get_current_user)])
 
@@ -29,7 +29,11 @@ async def list_customers(
 
 
 @router.post("/", response_model=CustomerOut, status_code=status.HTTP_201_CREATED)
-async def create_customer(payload: CustomerCreate, db: AsyncSession = Depends(get_db)):
+async def create_customer(
+    payload: CustomerCreate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_manager_or_admin),
+):
     customer = Customer(**payload.model_dump())
     db.add(customer)
     await db.commit()
@@ -48,7 +52,10 @@ async def get_customer(customer_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.put("/{customer_id}", response_model=CustomerOut)
 async def update_customer(
-    customer_id: int, payload: CustomerUpdate, db: AsyncSession = Depends(get_db)
+    customer_id: int,
+    payload: CustomerUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_manager_or_admin),
 ):
     result = await db.execute(select(Customer).where(Customer.id == customer_id))
     customer = result.scalar_one_or_none()
@@ -62,7 +69,11 @@ async def update_customer(
 
 
 @router.delete("/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_customer(customer_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_customer(
+    customer_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_manager_or_admin),
+):
     result = await db.execute(select(Customer).where(Customer.id == customer_id))
     customer = result.scalar_one_or_none()
     if not customer:

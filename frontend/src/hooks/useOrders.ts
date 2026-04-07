@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cancelOrder, convertOrderToSale, createOrder, getOrder, getOrders, updateOrderStatus } from '../api/orders'
 import type { OrderConvertToSale, OrderCreate, OrderStatus } from '../types'
 
-export const useOrders = (params?: { status?: string }) =>
+export const useOrders = (params?: { status?: string; q?: string }) =>
   useQuery({ queryKey: ['orders', params], queryFn: () => getOrders(params) })
 
 export const useOrder = (id: number) =>

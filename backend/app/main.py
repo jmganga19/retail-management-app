@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from .config import settings
+from .database import engine
 from .routers import categories, products, customers, sales, orders, preorders, dashboard, auth, users, audit_logs, settings as app_settings
 
 app = FastAPI(title="Retail Management System", version="1.0.0")
@@ -31,3 +33,13 @@ app.include_router(dashboard.router, prefix=PREFIX)
 @app.get("/")
 async def root():
     return {"message": "Retail Management System API"}
+
+
+@app.get("/healthz")
+async def healthz():
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        return {"status": "ok", "database": "ok"}
+    except Exception:
+        return {"status": "degraded", "database": "error"}

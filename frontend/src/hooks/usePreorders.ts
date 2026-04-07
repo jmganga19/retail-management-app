@@ -9,7 +9,7 @@ import {
 } from '../api/preorders'
 import type { PreOrderCreate, PreOrderStatus } from '../types'
 
-export const usePreorders = (params?: { status?: string }) =>
+export const usePreorders = (params?: { status?: string; q?: string }) =>
   useQuery({ queryKey: ['preorders', params], queryFn: () => getPreorders(params) })
 
 export const usePreorder = (id: number) =>

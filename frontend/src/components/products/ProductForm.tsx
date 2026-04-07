@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
+import { useCategories } from '../../hooks/useCategories'
+import { useAddVariant, useCreateProduct, useUpdateProduct, useUpdateVariant } from '../../hooks/useProducts'
+import type { Product, VariantCreate } from '../../types'
+import Modal from '../ui/Modal'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
 import Select from '../ui/Select'
-import Modal from '../ui/Modal'
-import { useCategories } from '../../hooks/useCategories'
-import { useCreateProduct, useUpdateProduct } from '../../hooks/useProducts'
-import type { Product, VariantCreate } from '../../types'
 
 interface ProductFormProps {
   open: boolean
@@ -14,6 +14,7 @@ interface ProductFormProps {
 }
 
 interface VariantRow {
+  id?: number
   size: string
   color: string
   sku: string
@@ -26,6 +27,8 @@ export default function ProductForm({ open, onClose, editing }: ProductFormProps
   const { data: categories = [] } = useCategories()
   const create = useCreateProduct()
   const update = useUpdateProduct()
+  const updateVariant = useUpdateVariant()
+  const addVariant = useAddVariant()
 
   const [name, setName] = useState('')
   const [categoryId, setCategoryId] = useState('')
@@ -47,6 +50,7 @@ export default function ProductForm({ open, onClose, editing }: ProductFormProps
       setVariants(
         editing.variants.length > 0
           ? editing.variants.map(v => ({
+              id: v.id,
               size: v.size ?? '',
               color: v.color ?? '',
               sku: v.sku ?? '',
@@ -55,20 +59,29 @@ export default function ProductForm({ open, onClose, editing }: ProductFormProps
           : [emptyVariant()],
       )
     } else {
-      setName(''); setCategoryId(''); setDescription(''); setPrice('')
-      setImageUrl(''); setThreshold('5'); setVariants([emptyVariant()])
+      setName('')
+      setCategoryId('')
+      setDescription('')
+      setPrice('')
+      setImageUrl('')
+      setThreshold('5')
+      setVariants([emptyVariant()])
     }
     setError('')
   }, [editing, open])
 
   const handleSubmit = async () => {
     setError('')
-    if (!name || !categoryId || !price) { setError('Name, category and price are required.'); return }
+    if (!name || !categoryId || !price) {
+      setError('Name, category and price are required.')
+      return
+    }
+
     const variantPayload: VariantCreate[] = variants.map(v => ({
       size: v.size || undefined,
       color: v.color || undefined,
       sku: v.sku || undefined,
-      stock_qty: Number(v.stock_qty),
+      stock_qty: Number.isFinite(Number(v.stock_qty)) ? Number(v.stock_qty) : 0,
     }))
 
     try {
@@ -76,29 +89,50 @@ export default function ProductForm({ open, onClose, editing }: ProductFormProps
         await update.mutateAsync({
           id: editing.id,
           data: {
-            name, category_id: Number(categoryId), description: description || undefined,
-            price: Number(price), image_url: imageUrl || undefined,
+            name,
+            category_id: Number(categoryId),
+            description: description || undefined,
+            price: Number(price),
+            image_url: imageUrl || undefined,
             low_stock_threshold: Number(threshold),
           },
         })
+
+        for (let i = 0; i < variants.length; i += 1) {
+          const row = variants[i]
+          const payload = variantPayload[i]
+          if (row.id) {
+            await updateVariant.mutateAsync({
+              productId: editing.id,
+              variantId: row.id,
+              data: payload,
+            })
+          } else {
+            await addVariant.mutateAsync({ productId: editing.id, data: payload })
+          }
+        }
       } else {
         await create.mutateAsync({
-          name, category_id: Number(categoryId), description: description || undefined,
-          price: Number(price), image_url: imageUrl || undefined,
-          low_stock_threshold: Number(threshold), variants: variantPayload,
+          name,
+          category_id: Number(categoryId),
+          description: description || undefined,
+          price: Number(price),
+          image_url: imageUrl || undefined,
+          low_stock_threshold: Number(threshold),
+          variants: variantPayload,
         })
       }
       onClose()
-    } catch (e: unknown) {
+    } catch {
       setError('Failed to save product. Please try again.')
     }
   }
 
-  const updateVariant = (idx: number, field: keyof VariantRow, value: string | number) => {
-    setVariants(prev => prev.map((v, i) => i === idx ? { ...v, [field]: value } : v))
+  const updateVariantRow = (idx: number, field: keyof VariantRow, value: string | number) => {
+    setVariants(prev => prev.map((v, i) => (i === idx ? { ...v, [field]: value } : v)))
   }
 
-  const isPending = create.isPending || update.isPending
+  const isPending = create.isPending || update.isPending || updateVariant.isPending || addVariant.isPending
 
   return (
     <Modal
@@ -108,8 +142,12 @@ export default function ProductForm({ open, onClose, editing }: ProductFormProps
       size="xl"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSubmit} loading={isPending}>Save</Button>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} loading={isPending}>
+            Save
+          </Button>
         </>
       }
     >
@@ -131,37 +169,39 @@ export default function ProductForm({ open, onClose, editing }: ProductFormProps
           <Input label="Low Stock Threshold" type="number" min="0" value={threshold} onChange={e => setThreshold(e.target.value)} />
         </div>
 
-        {/* Variants — only shown when creating */}
-        {!editing && (
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium text-gray-700">Variants (size / color / stock)</p>
-              <Button size="sm" variant="ghost" onClick={() => setVariants(v => [...v, emptyVariant()])}>
-                + Add variant
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {variants.map((v, idx) => (
-                <div key={idx} className="grid grid-cols-4 gap-2 items-end">
-                  <Input placeholder="Size" value={v.size} onChange={e => updateVariant(idx, 'size', e.target.value)} />
-                  <Input placeholder="Color" value={v.color} onChange={e => updateVariant(idx, 'color', e.target.value)} />
-                  <Input placeholder="SKU" value={v.sku} onChange={e => updateVariant(idx, 'sku', e.target.value)} />
-                  <div className="flex gap-1">
-                    <Input type="number" min="0" placeholder="Qty" value={v.stock_qty}
-                      onChange={e => updateVariant(idx, 'stock_qty', Number(e.target.value))} />
-                    {variants.length > 1 && (
-                      <Button size="sm" variant="danger" onClick={() => setVariants(prev => prev.filter((_, i) => i !== idx))}>
-                        ×
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-medium text-gray-700">Variants (size / color / stock)</p>
+            <Button size="sm" variant="ghost" onClick={() => setVariants(v => [...v, emptyVariant()])}>
+              + Add variant
+            </Button>
           </div>
-        )}
+          <div className="space-y-2">
+            {variants.map((v, idx) => (
+              <div key={v.id ?? `new-${idx}`} className="grid grid-cols-4 gap-2 items-end">
+                <Input placeholder="Size" value={v.size} onChange={e => updateVariantRow(idx, 'size', e.target.value)} />
+                <Input placeholder="Color" value={v.color} onChange={e => updateVariantRow(idx, 'color', e.target.value)} />
+                <Input placeholder="SKU" value={v.sku} onChange={e => updateVariantRow(idx, 'sku', e.target.value)} />
+                <div className="flex gap-1">
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="Qty"
+                    value={v.stock_qty}
+                    onChange={e => updateVariantRow(idx, 'stock_qty', Number(e.target.value))}
+                  />
+                  {variants.length > 1 && !v.id && (
+                    <Button size="sm" variant="danger" onClick={() => setVariants(prev => prev.filter((_, i) => i !== idx))}>
+                      x
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          {editing && <p className="mt-2 text-xs text-gray-500">Edit stock quantity here to increase or reduce stock.</p>}
+        </div>
       </div>
     </Modal>
   )
 }
-

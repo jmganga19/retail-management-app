@@ -1,7 +1,7 @@
 import client from './client'
 import type { Order, OrderConvertToSale, OrderCreate, OrderListItem, OrderStatus, Sale } from '../types'
 
-export const getOrders = (params?: { status?: string; customer_id?: number }) =>
+export const getOrders = (params?: { status?: string; customer_id?: number; q?: string }) =>
   client.get<OrderListItem[]>('/orders', { params }).then(r => r.data)
 
 export const getOrder = (id: number) =>

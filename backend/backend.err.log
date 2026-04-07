@@ -1,0 +1,30 @@
+INFO:     Will watch for changes in these directories: ['D:\\WEB DEVELOPMENT\\Retail App\\backend']
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [20720] using WatchFiles
+INFO:     Started server process [17420]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app\routers\settings.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [17420]
+INFO:     Started server process [26188]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app\routers\sales.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [26188]
+WARNING:  WatchFiles detected changes in 'app\routers\customers.py', 'app\routers\preorders.py', 'app\main.py', 'app\services\audit_service.py', 'app\routers\categories.py', 'app\services\order_service.py', 'app\schemas\sale.py', 'app\routers\orders.py', 'app\routers\sales.py', 'app\services\sale_service.py', 'app\routers\products.py', 'app\schemas\order.py', 'app\schemas\preorder.py'. Reloading...
+INFO:     Started server process [20188]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [20188]
+INFO:     Started server process [24040]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.

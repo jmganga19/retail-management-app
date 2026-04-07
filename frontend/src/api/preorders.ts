@@ -1,7 +1,7 @@
 import client from './client'
 import type { PreOrder, PreOrderCreate, PreOrderListItem, PreOrderStatus } from '../types'
 
-export const getPreorders = (params?: { status?: string }) =>
+export const getPreorders = (params?: { status?: string; q?: string }) =>
   client.get<PreOrderListItem[]>('/preorders', { params }).then(r => r.data)
 
 export const getPreorder = (id: number) =>

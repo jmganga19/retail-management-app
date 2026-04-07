@@ -15,10 +15,18 @@ const esc = (v: string | number | null | undefined) =>
     .replace(/'/g, '&#39;')
 
 const itemLabel = (item: { variant: { sku: string | null; size: string | null; color: string | null } | null }) => {
-  if (!item.variant) return 'Variant' 
+  if (!item.variant) return 'Variant'
   const parts = [item.variant.sku, item.variant.size, item.variant.color].filter(Boolean)
   return parts.length ? parts.join(' / ') : 'Default Variant'
 }
+
+interface PrintOptions {
+  appName?: string
+  customerName?: string | null
+}
+
+const resolveAppName = (options?: PrintOptions) => options?.appName?.trim() || 'RetailPro'
+const resolveCustomerName = (options?: PrintOptions) => options?.customerName?.trim() || '-'
 
 function openPrintable(title: string, bodyHtml: string) {
   const w = window.open('', '_blank', 'width=900,height=700')
@@ -53,7 +61,7 @@ ${bodyHtml}
   w.print()
 }
 
-export function printSaleReceipt(sale: Sale) {
+export function printSaleReceipt(sale: Sale, options?: PrintOptions) {
   const rows = sale.items
     .map(
       i => `<tr>
@@ -68,12 +76,12 @@ export function printSaleReceipt(sale: Sale) {
   openPrintable(
     `Receipt ${sale.sale_number}`,
     `<h1>Sales Receipt</h1>
-    <div class="muted">RetailPro</div>
+    <div class="muted">${esc(resolveAppName(options))}</div>
     <div class="meta">
       <div><strong>Receipt #:</strong> ${esc(sale.sale_number)}</div>
       <div><strong>Date:</strong> ${esc(fmtDateTime(sale.sold_at))}</div>
       <div><strong>Payment:</strong> ${esc(sale.payment_method.replace('_', ' '))}</div>
-      <div><strong>Customer ID:</strong> ${esc(sale.customer_id ?? '-')}</div>
+      <div><strong>Customer:</strong> ${esc(resolveCustomerName(options))}</div>
     </div>
     <table>
       <thead>
@@ -89,7 +97,7 @@ export function printSaleReceipt(sale: Sale) {
   )
 }
 
-export function printOrderInvoice(order: Order) {
+export function printOrderInvoice(order: Order, options?: PrintOptions) {
   const rows = order.items
     .map(
       i => `<tr>
@@ -104,12 +112,12 @@ export function printOrderInvoice(order: Order) {
   openPrintable(
     `Invoice ${order.order_number}`,
     `<h1>Order Invoice</h1>
-    <div class="muted">RetailPro</div>
+    <div class="muted">${esc(resolveAppName(options))}</div>
     <div class="meta">
       <div><strong>Invoice #:</strong> ${esc(order.order_number)}</div>
       <div><strong>Created:</strong> ${esc(fmtDateTime(order.created_at))}</div>
       <div><strong>Status:</strong> ${esc(order.status)}</div>
-      <div><strong>Customer ID:</strong> ${esc(order.customer_id)}</div>
+      <div><strong>Customer:</strong> ${esc(resolveCustomerName(options))}</div>
     </div>
     <table>
       <thead>
@@ -125,7 +133,7 @@ export function printOrderInvoice(order: Order) {
   )
 }
 
-export function printPreorderInvoice(preorder: PreOrder) {
+export function printPreorderInvoice(preorder: PreOrder, options?: PrintOptions) {
   const rows = preorder.items
     .map(
       i => `<tr>
@@ -140,13 +148,13 @@ export function printPreorderInvoice(preorder: PreOrder) {
   openPrintable(
     `Pre-order ${preorder.preorder_number}`,
     `<h1>Pre-order Invoice</h1>
-    <div class="muted">RetailPro</div>
+    <div class="muted">${esc(resolveAppName(options))}</div>
     <div class="meta">
       <div><strong>Pre-order #:</strong> ${esc(preorder.preorder_number)}</div>
       <div><strong>Created:</strong> ${esc(fmtDateTime(preorder.created_at))}</div>
       <div><strong>Status:</strong> ${esc(preorder.status)}</div>
       <div><strong>Expected Arrival:</strong> ${esc(fmtDate(preorder.expected_arrival_date))}</div>
-      <div><strong>Customer ID:</strong> ${esc(preorder.customer_id)}</div>
+      <div><strong>Customer:</strong> ${esc(resolveCustomerName(options))}</div>
     </div>
     <table>
       <thead>
@@ -161,5 +169,3 @@ export function printPreorderInvoice(preorder: PreOrder) {
     </div>`,
   )
 }
-
-

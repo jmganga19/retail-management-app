@@ -50,6 +50,8 @@ class SaleListOut(BaseModel):
     id: int
     sale_number: str
     customer_id: int | None
+    customer_name: str | None = None
+    product_names: str
     payment_method: str
     total: Decimal
     sold_at: datetime

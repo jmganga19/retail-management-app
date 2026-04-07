@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { createOrder, getOrder } from '../api/orders'
+import { useAuth } from '../auth/AuthContext'
 import NewOrderForm from '../components/orders/NewOrderForm'
 import OrderStatusBadge from '../components/orders/OrderStatusBadge'
 import Button from '../components/ui/Button'
@@ -12,6 +13,7 @@ import Select from '../components/ui/Select'
 import Table from '../components/ui/Table'
 import TemplateButton from '../components/ui/TemplateButton'
 import { useConvertOrderToSale, useOrders, useUpdateOrderStatus } from '../hooks/useOrders'
+import { useSettings } from '../hooks/useSettings'
 import type { OrderListItem, OrderStatus } from '../types'
 import { parseNumericLike, parsePositiveIntLike, trimToUndefined } from '../utils/importParsers'
 import { printOrderInvoice } from '../utils/print'
@@ -41,7 +43,11 @@ const isDebtOrder = (order: OrderListItem) => order.status === 'completed' && !o
 
 export default function OrdersPage() {
   const qc = useQueryClient()
+  const { user } = useAuth()
+  const canManageOrders = user?.role === 'admin' || user?.role === 'manager'
+  const { data: settings } = useSettings()
   const [statusFilter, setStatusFilter] = useState('')
+  const [search, setSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
   const [printingId, setPrintingId] = useState<number | null>(null)
@@ -51,13 +57,13 @@ export default function OrdersPage() {
   const [convertError, setConvertError] = useState('')
 
   const apiStatus = statusFilter && statusFilter !== 'debt' ? statusFilter : undefined
-  const { data: orders = [], isLoading } = useOrders({ status: apiStatus })
+  const { data: orders = [], isLoading } = useOrders({ status: apiStatus, q: search.trim() || undefined })
   const updateStatus = useUpdateOrderStatus()
   const convertToSale = useConvertOrderToSale()
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [statusFilter])
+  }, [statusFilter, search])
 
   const visibleOrders = useMemo(
     () => (statusFilter === 'debt' ? orders.filter(isDebtOrder) : orders),
@@ -129,7 +135,8 @@ export default function OrdersPage() {
     try {
       setPrintingId(orderId)
       const order = await getOrder(orderId)
-      printOrderInvoice(order)
+      const orderRow = orders.find(o => o.id === orderId)
+      printOrderInvoice(order, { appName: settings?.app_name, customerName: orderRow?.customer_name })
     } finally {
       setPrintingId(null)
     }
@@ -162,6 +169,8 @@ export default function OrdersPage() {
 
   const columns = [
     { key: 'number', header: 'Order #', render: (o: OrderListItem) => <span className="font-mono text-xs">{o.order_number}</span> },
+    { key: 'customer', header: 'Customer', render: (o: OrderListItem) => o.customer_name ?? '-' },
+    { key: 'products', header: 'Product Name', render: (o: OrderListItem) => o.product_names },
     {
       key: 'status',
       header: 'Status',
@@ -189,12 +198,12 @@ export default function OrdersPage() {
             <Button size="sm" variant="secondary" loading={printingId === o.id} onClick={() => handlePrint(o.id)}>
               Print
             </Button>
-            {isDebtOrder(o) && (
+            {canManageOrders && isDebtOrder(o) && (
               <Button size="sm" variant="primary" loading={convertToSale.isPending} onClick={() => openConvertModal(o)}>
                 Convert to Sale
               </Button>
             )}
-            {next && (
+            {canManageOrders && next && (
               <Button
                 size="sm"
                 variant="secondary"
@@ -204,7 +213,7 @@ export default function OrdersPage() {
                 Next: {next}
               </Button>
             )}
-            {o.status !== 'cancelled' && o.status !== 'completed' && (
+            {canManageOrders && o.status !== 'cancelled' && o.status !== 'completed' && (
               <Button size="sm" variant="danger" onClick={() => updateStatus.mutate({ id: o.id, status: 'cancelled' })}>
                 Cancel
               </Button>
@@ -217,7 +226,7 @@ export default function OrdersPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex gap-1 flex-wrap">
           {tabs.map(t => (
             <button
@@ -232,6 +241,12 @@ export default function OrdersPage() {
             </button>
           ))}
         </div>
+        <Input
+          label="Search"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Order #, customer, product"
+        />
         <div className="flex items-center gap-2">
           <TemplateButton template="orders" />
           <ImportCsvButton template="orders" onImport={handleImport} />
@@ -282,3 +297,8 @@ export default function OrdersPage() {
     </div>
   )
 }
+
+
+
+
+

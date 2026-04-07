@@ -8,21 +8,21 @@ from sqlalchemy.orm import selectinload
 from ..models import Product, ProductVariant, Sale, SaleItem
 from ..schemas.sale import SaleCreate
 from ..utils.number_generator import generate_number
+from .audit_service import create_audit_log
 
 
-async def create_sale(db: AsyncSession, payload: SaleCreate) -> Sale:
+async def create_sale(db: AsyncSession, payload: SaleCreate, actor_user_id: int | None = None) -> Sale:
     """
     Creates a sale atomically:
     1. Lock each variant row with SELECT FOR UPDATE
     2. Validate stock is sufficient
     3. Deduct stock
     4. Compute totals
-    5. Insert Sale + SaleItems in one transaction
+    5. Insert Sale + SaleItems + stock audit logs in one transaction
     """
     items_data = []
 
     for item in payload.items:
-        # Row-level lock to prevent race conditions / overselling
         result = await db.execute(
             select(ProductVariant)
             .where(ProductVariant.id == item.variant_id)
@@ -38,20 +38,27 @@ async def create_sale(db: AsyncSession, payload: SaleCreate) -> Sale:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Insufficient stock for variant {item.variant_id}: "
-                       f"available {variant.stock_qty}, requested {item.quantity}",
+                f"available {variant.stock_qty}, requested {item.quantity}",
             )
 
-        # Load the product to get the current price
-        prod_result = await db.execute(
-            select(Product).where(Product.id == variant.product_id)
-        )
+        prod_result = await db.execute(select(Product).where(Product.id == variant.product_id))
         product = prod_result.scalar_one()
 
+        before_qty = variant.stock_qty
         unit_price = product.price
         subtotal = unit_price * item.quantity
         variant.stock_qty -= item.quantity
+        after_qty = variant.stock_qty
+
         items_data.append(
-            {"variant": variant, "quantity": item.quantity, "unit_price": unit_price, "subtotal": subtotal}
+            {
+                "variant": variant,
+                "quantity": item.quantity,
+                "unit_price": unit_price,
+                "subtotal": subtotal,
+                "before_qty": before_qty,
+                "after_qty": after_qty,
+            }
         )
 
     gross_subtotal = sum(d["subtotal"] for d in items_data)
@@ -70,7 +77,7 @@ async def create_sale(db: AsyncSession, payload: SaleCreate) -> Sale:
         notes=payload.notes,
     )
     db.add(sale)
-    await db.flush()  # get sale.id
+    await db.flush()
 
     for d in items_data:
         db.add(
@@ -82,10 +89,20 @@ async def create_sale(db: AsyncSession, payload: SaleCreate) -> Sale:
                 subtotal=d["subtotal"],
             )
         )
+        await create_audit_log(
+            db,
+            actor_user_id=actor_user_id,
+            action="stock_deduct_sale",
+            target_type="product_variant",
+            target_id=d["variant"].id,
+            description=(
+                f"Sale {sale.sale_number}: qty -{d['quantity']} "
+                f"(before={d['before_qty']}, after={d['after_qty']})"
+            ),
+        )
 
     await db.commit()
 
-    # Reload with items eagerly
     result = await db.execute(
         select(Sale)
         .options(selectinload(Sale.items).selectinload(SaleItem.variant))
@@ -94,11 +111,9 @@ async def create_sale(db: AsyncSession, payload: SaleCreate) -> Sale:
     return result.scalar_one()
 
 
-async def void_sale(db: AsyncSession, sale_id: int) -> None:
-    """Void a sale: restore all variant stock quantities."""
-    result = await db.execute(
-        select(Sale).options(selectinload(Sale.items)).where(Sale.id == sale_id)
-    )
+async def void_sale(db: AsyncSession, sale_id: int, actor_user_id: int | None = None) -> None:
+    """Void a sale: restore all variant stock quantities and log stock restoration."""
+    result = await db.execute(select(Sale).options(selectinload(Sale.items)).where(Sale.id == sale_id))
     sale = result.scalar_one_or_none()
     if not sale:
         raise HTTPException(status_code=404, detail="Sale not found")
@@ -109,7 +124,20 @@ async def void_sale(db: AsyncSession, sale_id: int) -> None:
         )
         variant = var_result.scalar_one_or_none()
         if variant:
+            before_qty = variant.stock_qty
             variant.stock_qty += item.quantity
+            after_qty = variant.stock_qty
+            await create_audit_log(
+                db,
+                actor_user_id=actor_user_id,
+                action="stock_restore_void_sale",
+                target_type="product_variant",
+                target_id=variant.id,
+                description=(
+                    f"Void sale {sale.sale_number}: qty +{item.quantity} "
+                    f"(before={before_qty}, after={after_qty})"
+                ),
+            )
 
     await db.delete(sale)
     await db.commit()

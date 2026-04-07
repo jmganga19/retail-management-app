@@ -3,11 +3,14 @@ import { useAuth } from '../../auth/AuthContext'
 import { useLowStockProducts } from '../../hooks/useProducts'
 import { useSettings } from '../../hooks/useSettings'
 
+type UserRole = 'admin' | 'manager' | 'staff'
+
 interface NavItem {
   to: string
   label: string
   icon: JSX.Element
   showLowStock?: boolean
+  allowedRoles?: UserRole[]
 }
 
 const navItems: NavItem[] = [
@@ -23,6 +26,7 @@ const navItems: NavItem[] = [
   {
     to: '/reports',
     label: 'Reports',
+    allowedRoles: ['admin', 'manager'],
     icon: (
       <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-6m3 6V7m3 10v-4m3 8H6a2 2 0 01-2-2V5a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2z" />
@@ -32,6 +36,7 @@ const navItems: NavItem[] = [
   {
     to: '/categories',
     label: 'Categories',
+    allowedRoles: ['admin', 'manager'],
     icon: (
       <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h10M7 12h10M7 17h10M4 7h.01M4 12h.01M4 17h.01" />
@@ -41,6 +46,7 @@ const navItems: NavItem[] = [
   {
     to: '/products',
     label: 'Products',
+    allowedRoles: ['admin', 'manager'],
     icon: (
       <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -78,6 +84,7 @@ const navItems: NavItem[] = [
   {
     to: '/customers',
     label: 'Customers',
+    allowedRoles: ['admin', 'manager'],
     icon: (
       <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87M15 7a4 4 0 11-8 0 4 4 0 018 0zm6 4a3 3 0 11-6 0 3 3 0 016 0zM3 11a3 3 0 116 0 3 3 0 01-6 0z" />
@@ -106,14 +113,26 @@ const settingsNavItem: NavItem = {
   ),
 }
 
+const stockAuditNavItem: NavItem = {
+  to: '/stock-audit',
+  label: 'Stock Audit',
+  icon: (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2V7m3 10v-6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" />
+    </svg>
+  ),
+}
+
 export default function Sidebar() {
   const { data: lowStock } = useLowStockProducts()
   const { data: settings } = useSettings()
   const { user } = useAuth()
   const lowStockCount = lowStock?.length ?? 0
 
-  const adminItems = user?.role === 'admin' ? [usersNavItem, settingsNavItem] : []
-  const items = [...navItems, ...adminItems]
+  const role = user?.role ?? 'staff'
+  const visibleMainItems = navItems.filter(item => !item.allowedRoles || item.allowedRoles.includes(role))
+  const adminItems = role === 'admin' ? [usersNavItem, settingsNavItem, stockAuditNavItem] : []
+  const items = [...visibleMainItems, ...adminItems]
 
   return (
     <aside className="w-60 min-h-screen bg-white border-r border-gray-100 flex flex-col shadow-sm">
@@ -151,7 +170,8 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div className="px-4 py-4 border-t border-gray-100 text-xs text-gray-400 text-center">Retail Manager v1.0</div>
+      <div className="px-4 py-4 border-t border-gray-100 text-xs text-gray-400 text-center">{settings?.app_name ?? 'RetailPro'}</div>
     </aside>
   )
 }
+

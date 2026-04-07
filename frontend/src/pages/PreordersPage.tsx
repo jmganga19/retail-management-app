@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { createPreorder, getPreorder } from '../api/preorders'
+import { useAuth } from '../auth/AuthContext'
 import NewPreorderForm from '../components/preorders/NewPreorderForm'
 import PreorderStatusBadge from '../components/preorders/PreorderStatusBadge'
 import Button from '../components/ui/Button'
@@ -11,6 +12,7 @@ import Pagination from '../components/ui/Pagination'
 import Table from '../components/ui/Table'
 import TemplateButton from '../components/ui/TemplateButton'
 import { usePreorders, useUpdateDeposit, useUpdatePreorderStatus } from '../hooks/usePreorders'
+import { useSettings } from '../hooks/useSettings'
 import type { PreOrderListItem, PreOrderStatus } from '../types'
 import { parseNumericLike, parsePositiveIntLike, trimToUndefined } from '../utils/importParsers'
 import { printPreorderInvoice } from '../utils/print'
@@ -35,20 +37,25 @@ const nextStatus: Partial<Record<PreOrderStatus, PreOrderStatus>> = {
 
 export default function PreordersPage() {
   const qc = useQueryClient()
+  const { user } = useAuth()
   const [statusFilter, setStatusFilter] = useState('')
+  const [search, setSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [newOpen, setNewOpen] = useState(false)
   const [depositModal, setDepositModal] = useState<{ id: number; current: number } | null>(null)
   const [depositVal, setDepositVal] = useState(0)
   const [printingId, setPrintingId] = useState<number | null>(null)
 
-  const { data: preorders = [], isLoading } = usePreorders({ status: statusFilter || undefined })
+  const canManagePreorders = user?.role === 'admin' || user?.role === 'manager'
+  const { data: settings } = useSettings()
+
+  const { data: preorders = [], isLoading } = usePreorders({ status: statusFilter || undefined, q: search.trim() || undefined })
   const updateStatus = useUpdatePreorderStatus()
   const updateDeposit = useUpdateDeposit()
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [statusFilter])
+  }, [statusFilter, search])
 
   const totalPages = Math.max(1, Math.ceil(preorders.length / PAGE_SIZE))
   useEffect(() => {
@@ -120,7 +127,8 @@ export default function PreordersPage() {
     try {
       setPrintingId(preorderId)
       const preorder = await getPreorder(preorderId)
-      printPreorderInvoice(preorder)
+      const preorderRow = preorders.find(p => p.id === preorderId)
+      printPreorderInvoice(preorder, { appName: settings?.app_name, customerName: preorderRow?.customer_name })
     } finally {
       setPrintingId(null)
     }
@@ -132,6 +140,8 @@ export default function PreordersPage() {
       header: 'Pre-order #',
       render: (p: PreOrderListItem) => <span className="font-mono text-xs">{p.preorder_number}</span>,
     },
+    { key: 'customer', header: 'Customer', render: (p: PreOrderListItem) => p.customer_name ?? '-' },
+    { key: 'products', header: 'Product Name', render: (p: PreOrderListItem) => p.product_names },
     { key: 'status', header: 'Status', render: (p: PreOrderListItem) => <PreorderStatusBadge status={p.status} /> },
     {
       key: 'arrival',
@@ -158,7 +168,7 @@ export default function PreordersPage() {
             <Button size="sm" variant="secondary" loading={printingId === p.id} onClick={() => handlePrint(p.id)}>
               Print
             </Button>
-            {next && (
+            {canManagePreorders && next && (
               <Button
                 size="sm"
                 variant="secondary"
@@ -168,12 +178,12 @@ export default function PreordersPage() {
                 Mark as {next}
               </Button>
             )}
-            {p.status !== 'cancelled' && p.status !== 'collected' && (
+            {canManagePreorders && p.status !== 'cancelled' && p.status !== 'collected' && (
               <Button size="sm" variant="ghost" onClick={() => openDepositModal(p)}>
                 Update Deposit
               </Button>
             )}
-            {p.status !== 'cancelled' && p.status !== 'collected' && (
+            {canManagePreorders && p.status !== 'cancelled' && p.status !== 'collected' && (
               <Button size="sm" variant="danger" onClick={() => updateStatus.mutate({ id: p.id, status: 'cancelled' })}>
                 Cancel
               </Button>
@@ -186,7 +196,7 @@ export default function PreordersPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex gap-1 flex-wrap">
           {tabs.map(t => (
             <button
@@ -201,6 +211,12 @@ export default function PreordersPage() {
             </button>
           ))}
         </div>
+        <Input
+          label="Search"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Pre-order #, customer, product"
+        />
         <div className="flex items-center gap-2">
           <TemplateButton template="preorders" />
           <ImportCsvButton template="preorders" onImport={handleImport} />
@@ -247,3 +263,5 @@ export default function PreordersPage() {
     </div>
   )
 }
+
+

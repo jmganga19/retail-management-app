@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..database import get_db
-from ..models import Product, ProductVariant
+from ..models import Product, ProductVariant, User
 from ..schemas.product import (
     ProductCreate,
     ProductOut,
@@ -13,14 +13,14 @@ from ..schemas.product import (
     VariantOut,
     VariantUpdate,
 )
-from ..utils.deps import get_current_user
+from ..services.audit_service import create_audit_log
+from ..utils.deps import get_current_user, require_manager_or_admin
 
 router = APIRouter(prefix="/products", tags=["Products"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/low-stock", response_model=list[ProductOut])
 async def low_stock_products(db: AsyncSession = Depends(get_db)):
-    """Products where any variant stock_qty is at or below the product threshold."""
     result = await db.execute(
         select(Product)
         .options(selectinload(Product.variants))
@@ -58,17 +58,20 @@ async def list_products(
 
 
 @router.post("/", response_model=ProductOut, status_code=status.HTTP_201_CREATED)
-async def create_product(payload: ProductCreate, db: AsyncSession = Depends(get_db)):
+async def create_product(
+    payload: ProductCreate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_manager_or_admin),
+):
     data = payload.model_dump(exclude={"variants"})
     product = Product(**data)
     db.add(product)
-    await db.flush()  # get product.id
+    await db.flush()
 
     for v in payload.variants:
         variant = ProductVariant(product_id=product.id, **v.model_dump())
         db.add(variant)
 
-    # Ensure at least one variant exists (cosmetics default)
     if not payload.variants:
         db.add(ProductVariant(product_id=product.id))
 
@@ -94,7 +97,10 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.put("/{product_id}", response_model=ProductOut)
 async def update_product(
-    product_id: int, payload: ProductUpdate, db: AsyncSession = Depends(get_db)
+    product_id: int,
+    payload: ProductUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_manager_or_admin),
 ):
     result = await db.execute(select(Product).where(Product.id == product_id))
     product = result.scalar_one_or_none()
@@ -111,8 +117,11 @@ async def update_product(
 
 
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_product(product_id: int, db: AsyncSession = Depends(get_db)):
-    """Soft delete - sets is_active=false to preserve history."""
+async def delete_product(
+    product_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_manager_or_admin),
+):
     result = await db.execute(select(Product).where(Product.id == product_id))
     product = result.scalar_one_or_none()
     if not product:
@@ -121,11 +130,12 @@ async def delete_product(product_id: int, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
 
-# --- Variant sub-routes ---
-
 @router.post("/{product_id}/variants", response_model=VariantOut, status_code=status.HTTP_201_CREATED)
 async def add_variant(
-    product_id: int, payload: VariantCreate, db: AsyncSession = Depends(get_db)
+    product_id: int,
+    payload: VariantCreate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_manager_or_admin),
 ):
     result = await db.execute(select(Product).where(Product.id == product_id))
     if not result.scalar_one_or_none():
@@ -143,6 +153,7 @@ async def update_variant(
     variant_id: int,
     payload: VariantUpdate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_manager_or_admin),
 ):
     result = await db.execute(
         select(ProductVariant).where(
@@ -152,8 +163,25 @@ async def update_variant(
     variant = result.scalar_one_or_none()
     if not variant:
         raise HTTPException(status_code=404, detail="Variant not found")
-    for field, value in payload.model_dump(exclude_none=True).items():
+
+    before_qty = variant.stock_qty
+    changes = payload.model_dump(exclude_none=True)
+    for field, value in changes.items():
         setattr(variant, field, value)
+
+    if "stock_qty" in changes and changes["stock_qty"] != before_qty:
+        after_qty = variant.stock_qty
+        delta = after_qty - before_qty
+        sign = "+" if delta >= 0 else ""
+        await create_audit_log(
+            db,
+            actor_user_id=current_user.id,
+            action="stock_adjust_manual",
+            target_type="product_variant",
+            target_id=variant.id,
+            description=f"Manual stock adjustment: qty {sign}{delta} (before={before_qty}, after={after_qty})",
+        )
+
     await db.commit()
     await db.refresh(variant)
     return variant
@@ -161,7 +189,10 @@ async def update_variant(
 
 @router.delete("/{product_id}/variants/{variant_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_variant(
-    product_id: int, variant_id: int, db: AsyncSession = Depends(get_db)
+    product_id: int,
+    variant_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_manager_or_admin),
 ):
     result = await db.execute(
         select(ProductVariant).where(

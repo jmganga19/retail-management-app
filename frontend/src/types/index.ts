@@ -101,6 +101,8 @@ export interface SaleListItem {
   id: number
   sale_number: string
   customer_id: number | null
+  customer_name: string | null
+  product_names: string
   payment_method: string
   total: string
   sold_at: string
@@ -151,6 +153,8 @@ export interface OrderListItem {
   id: number
   order_number: string
   customer_id: number
+  customer_name: string | null
+  product_names: string
   sale_id: number | null
   status: OrderStatus
   total: string
@@ -206,6 +210,8 @@ export interface PreOrderListItem {
   id: number
   preorder_number: string
   customer_id: number
+  customer_name: string | null
+  product_names: string
   status: PreOrderStatus
   total_amount: string
   deposit_amount: string
@@ -240,3 +246,8 @@ export interface DashboardSummary {
   low_stock_count: number
   recent_transactions: RecentTransaction[]
 }
+
+
+
+
+

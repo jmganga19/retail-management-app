@@ -64,6 +64,8 @@ class PreOrderListOut(BaseModel):
     id: int
     preorder_number: str
     customer_id: int
+    customer_name: str | None = None
+    product_names: str
     status: str
     total_amount: Decimal
     deposit_amount: Decimal

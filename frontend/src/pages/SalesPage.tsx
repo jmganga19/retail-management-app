@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { createSale, getSale } from '../api/sales'
+import { useAuth } from '../auth/AuthContext'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import ImportCsvButton, { type ImportOutcome } from '../components/ui/ImportCsvButton'
@@ -11,6 +12,7 @@ import Select from '../components/ui/Select'
 import Table from '../components/ui/Table'
 import TemplateButton from '../components/ui/TemplateButton'
 import { useSales, useVoidSale } from '../hooks/useSales'
+import { useSettings } from '../hooks/useSettings'
 import type { SaleListItem } from '../types'
 import { normalizePaymentMethod, parseNumericLike, parsePositiveIntLike, trimToUndefined } from '../utils/importParsers'
 import { printSaleReceipt } from '../utils/print'
@@ -28,22 +30,28 @@ const paymentColor: Record<string, 'green' | 'blue' | 'purple'> = {
 
 export default function SalesPage() {
   const qc = useQueryClient()
+  const { user } = useAuth()
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [method, setMethod] = useState('')
+  const [search, setSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [printingId, setPrintingId] = useState<number | null>(null)
+
+  const canManageSales = user?.role === 'admin' || user?.role === 'manager'
+  const { data: settings } = useSettings()
 
   const { data: sales = [], isLoading } = useSales({
     date_from: dateFrom || undefined,
     date_to: dateTo || undefined,
     payment_method: method || undefined,
+    q: search.trim() || undefined,
   })
   const voidSale = useVoidSale()
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [dateFrom, dateTo, method])
+  }, [dateFrom, dateTo, method, search])
 
   const totalPages = Math.max(1, Math.ceil(sales.length / PAGE_SIZE))
   useEffect(() => {
@@ -109,7 +117,8 @@ export default function SalesPage() {
     try {
       setPrintingId(saleId)
       const sale = await getSale(saleId)
-      printSaleReceipt(sale)
+      const saleRow = sales.find(s => s.id === saleId)
+      printSaleReceipt(sale, { appName: settings?.app_name, customerName: saleRow?.customer_name })
     } finally {
       setPrintingId(null)
     }
@@ -117,6 +126,8 @@ export default function SalesPage() {
 
   const columns = [
     { key: 'number', header: 'Sale #', render: (s: SaleListItem) => <span className="font-mono text-xs">{s.sale_number}</span> },
+    { key: 'customer', header: 'Customer', render: (s: SaleListItem) => s.customer_name ?? 'Walk-in' },
+    { key: 'products', header: 'Product Name', render: (s: SaleListItem) => s.product_names },
     {
       key: 'method',
       header: 'Payment',
@@ -134,18 +145,20 @@ export default function SalesPage() {
           <Button size="sm" variant="secondary" loading={printingId === s.id} onClick={() => handlePrint(s.id)}>
             Print
           </Button>
-          <Button
-            size="sm"
-            variant="danger"
-            loading={voidSale.isPending}
-            onClick={async () => {
-              if (confirm(`Void sale ${s.sale_number}? Stock will be restored.`)) {
-                await voidSale.mutateAsync(s.id)
-              }
-            }}
-          >
-            Void
-          </Button>
+          {canManageSales && (
+            <Button
+              size="sm"
+              variant="danger"
+              loading={voidSale.isPending}
+              onClick={async () => {
+                if (confirm(`Void sale ${s.sale_number}? Stock will be restored.`)) {
+                  await voidSale.mutateAsync(s.id)
+                }
+              }}
+            >
+              Void
+            </Button>
+          )}
         </div>
       ),
     },
@@ -157,6 +170,7 @@ export default function SalesPage() {
         <div className="flex flex-wrap gap-3">
           <Input type="date" label="From" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
           <Input type="date" label="To" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+          <Input label="Search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Sale #, customer, product" />
           <Select
             label="Payment"
             value={method}
@@ -183,3 +197,5 @@ export default function SalesPage() {
     </div>
   )
 }
+
+

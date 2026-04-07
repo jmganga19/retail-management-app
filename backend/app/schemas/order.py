@@ -64,6 +64,8 @@ class OrderListOut(BaseModel):
     id: int
     order_number: str
     customer_id: int
+    customer_name: str | None = None
+    product_names: str
     sale_id: int | None = None
     status: str
     total: Decimal

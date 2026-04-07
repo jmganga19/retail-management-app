@@ -12,7 +12,7 @@ import Select from '../components/ui/Select'
 import Table from '../components/ui/Table'
 import TemplateButton from '../components/ui/TemplateButton'
 import { useCategories } from '../hooks/useCategories'
-import { useDeleteProduct, useProducts } from '../hooks/useProducts'
+import { useDeleteProduct, useProducts, useUpdateProduct } from '../hooks/useProducts'
 import type { Product } from '../types'
 
 const PAGE_SIZE = 10
@@ -41,6 +41,7 @@ export default function ProductsPage() {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'active' | 'archived' | 'all'>('active')
   const [currentPage, setCurrentPage] = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
@@ -49,13 +50,14 @@ export default function ProductsPage() {
   const { data: products = [], isLoading } = useProducts({
     name: search || undefined,
     category_id: categoryId ? Number(categoryId) : undefined,
-    is_active: true,
+    is_active: statusFilter === 'all' ? undefined : statusFilter === 'active',
   })
   const deleteProduct = useDeleteProduct()
+  const updateProduct = useUpdateProduct()
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [search, categoryId])
+  }, [search, categoryId, statusFilter])
 
   const totalPages = Math.max(1, Math.ceil(products.length / PAGE_SIZE))
   useEffect(() => {
@@ -151,6 +153,7 @@ export default function ProductsPage() {
         <div>
           <p className="font-medium">{p.name}</p>
           {p.description && <p className="text-xs text-gray-400 truncate max-w-xs">{p.description}</p>}
+          {!p.is_active && <p className="text-xs text-amber-700">Archived</p>}
         </div>
       ),
     },
@@ -193,15 +196,28 @@ export default function ProductsPage() {
           >
             Edit
           </Button>
-          <Button
-            size="sm"
-            variant="danger"
-            onClick={async () => {
-              if (confirm('Archive this product?')) await deleteProduct.mutateAsync(p.id)
-            }}
-          >
-            Archive
-          </Button>
+          {p.is_active ? (
+            <Button
+              size="sm"
+              variant="danger"
+              onClick={async () => {
+                if (confirm('Archive this product?')) await deleteProduct.mutateAsync(p.id)
+              }}
+            >
+              Archive
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="primary"
+              loading={updateProduct.isPending}
+              onClick={async () => {
+                await updateProduct.mutateAsync({ id: p.id, data: { is_active: true } })
+              }}
+            >
+              Restore
+            </Button>
+          )}
         </div>
       ),
     },
@@ -219,7 +235,7 @@ export default function ProductsPage() {
       )}
 
       <div className="flex flex-wrap gap-3 items-center justify-between">
-        <div className="flex gap-3 flex-1 min-w-0">
+        <div className="flex gap-3 flex-1 min-w-0 flex-wrap">
           <SearchBar
             placeholder="Search products..."
             value={search}
@@ -233,6 +249,16 @@ export default function ProductsPage() {
             options={categories.map(c => ({ value: c.id, label: c.name }))}
             placeholder="All categories"
             className="max-w-[180px]"
+          />
+          <Select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value as 'active' | 'archived' | 'all')}
+            options={[
+              { value: 'active', label: 'Active' },
+              { value: 'archived', label: 'Archived' },
+              { value: 'all', label: 'All' },
+            ]}
+            className="max-w-[150px]"
           />
         </div>
         <div className="flex items-center gap-2">

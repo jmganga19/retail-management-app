@@ -6,8 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..models import Order, OrderItem, ProductVariant, Sale, SaleItem
-from ..schemas.order import OrderCreate, OrderConvertToSale
+from ..schemas.order import OrderConvertToSale, OrderCreate
 from ..utils.number_generator import generate_number
+from .audit_service import create_audit_log
 
 VALID_TRANSITIONS: dict[str, set[str]] = {
     "pending": {"confirmed", "cancelled"},
@@ -22,9 +23,7 @@ async def create_order(db: AsyncSession, payload: OrderCreate) -> Order:
     items_data = []
 
     for item in payload.items:
-        result = await db.execute(
-            select(ProductVariant).where(ProductVariant.id == item.variant_id)
-        )
+        result = await db.execute(select(ProductVariant).where(ProductVariant.id == item.variant_id))
         variant = result.scalar_one_or_none()
         if not variant:
             raise HTTPException(
@@ -33,8 +32,12 @@ async def create_order(db: AsyncSession, payload: OrderCreate) -> Order:
             )
         subtotal = item.unit_price * item.quantity
         items_data.append(
-            {"variant_id": item.variant_id, "quantity": item.quantity,
-             "unit_price": item.unit_price, "subtotal": subtotal}
+            {
+                "variant_id": item.variant_id,
+                "quantity": item.quantity,
+                "unit_price": item.unit_price,
+                "subtotal": subtotal,
+            }
         )
 
     gross_subtotal = sum(d["subtotal"] for d in items_data)
@@ -86,7 +89,12 @@ async def update_order_status(db: AsyncSession, order_id: int, new_status: str) 
     return order
 
 
-async def convert_order_to_sale(db: AsyncSession, order_id: int, payload: OrderConvertToSale) -> Sale:
+async def convert_order_to_sale(
+    db: AsyncSession,
+    order_id: int,
+    payload: OrderConvertToSale,
+    actor_user_id: int | None = None,
+) -> Sale:
     result = await db.execute(
         select(Order)
         .options(selectinload(Order.items).selectinload(OrderItem.variant))
@@ -114,11 +122,10 @@ async def convert_order_to_sale(db: AsyncSession, order_id: int, payload: OrderC
             detail="Order has no items to convert",
         )
 
+    locked_items = []
     for item in order.items:
         lock_result = await db.execute(
-            select(ProductVariant)
-            .where(ProductVariant.id == item.variant_id)
-            .with_for_update()
+            select(ProductVariant).where(ProductVariant.id == item.variant_id).with_for_update()
         )
         variant = lock_result.scalar_one_or_none()
         if not variant:
@@ -134,7 +141,11 @@ async def convert_order_to_sale(db: AsyncSession, order_id: int, payload: OrderC
                     f"available {variant.stock_qty}, requested {item.quantity}"
                 ),
             )
+
+        before_qty = variant.stock_qty
         variant.stock_qty -= item.quantity
+        after_qty = variant.stock_qty
+        locked_items.append((item, before_qty, after_qty))
 
     sale_number = await generate_number(db, Sale, "sale_number", "SAL")
 
@@ -151,7 +162,7 @@ async def convert_order_to_sale(db: AsyncSession, order_id: int, payload: OrderC
     db.add(sale)
     await db.flush()
 
-    for item in order.items:
+    for item, before_qty, after_qty in locked_items:
         db.add(
             SaleItem(
                 sale_id=sale.id,
@@ -160,6 +171,17 @@ async def convert_order_to_sale(db: AsyncSession, order_id: int, payload: OrderC
                 unit_price=item.unit_price,
                 subtotal=item.subtotal,
             )
+        )
+        await create_audit_log(
+            db,
+            actor_user_id=actor_user_id,
+            action="stock_deduct_order_conversion",
+            target_type="product_variant",
+            target_id=item.variant_id,
+            description=(
+                f"Order {order.order_number} -> Sale {sale.sale_number}: qty -{item.quantity} "
+                f"(before={before_qty}, after={after_qty})"
+            ),
         )
 
     order.sale_id = sale.id
