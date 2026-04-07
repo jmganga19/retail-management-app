@@ -125,7 +125,7 @@ export default function ProductForm({ open, onClose, editing }: ProductFormProps
             options={categories.map(c => ({ value: c.id, label: c.name }))}
             placeholder="Select category"
           />
-          <Input label="Price (KES)" type="number" min="0" step="0.01" value={price} onChange={e => setPrice(e.target.value)} />
+          <Input label="Price (TZS)" type="number" min="0" step="0.01" value={price} onChange={e => setPrice(e.target.value)} />
           <Input label="Image URL" value={imageUrl} onChange={e => setImageUrl(e.target.value)} className="col-span-2" />
           <Input label="Description" value={description} onChange={e => setDescription(e.target.value)} className="col-span-2" />
           <Input label="Low Stock Threshold" type="number" min="0" value={threshold} onChange={e => setThreshold(e.target.value)} />
@@ -164,3 +164,4 @@ export default function ProductForm({ open, onClose, editing }: ProductFormProps
     </Modal>
   )
 }
+

@@ -128,10 +128,11 @@ export default function NewOrderForm({ open, onClose }: NewOrderFormProps) {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Input label="Discount (KES)" type="number" min="0" value={discount} onChange={e => setDiscount(Number(e.target.value))} />
+          <Input label="Discount (TZS)" type="number" min="0" value={discount} onChange={e => setDiscount(Number(e.target.value))} />
           <Input label="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
         </div>
       </div>
     </Modal>
   )
 }
+

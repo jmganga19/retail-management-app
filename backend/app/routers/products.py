@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -13,8 +13,9 @@ from ..schemas.product import (
     VariantOut,
     VariantUpdate,
 )
+from ..utils.deps import get_current_user
 
-router = APIRouter(prefix="/products", tags=["Products"])
+router = APIRouter(prefix="/products", tags=["Products"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/low-stock", response_model=list[ProductOut])
@@ -111,7 +112,7 @@ async def update_product(
 
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_product(product_id: int, db: AsyncSession = Depends(get_db)):
-    """Soft delete — sets is_active=false to preserve history."""
+    """Soft delete - sets is_active=false to preserve history."""
     result = await db.execute(select(Product).where(Product.id == product_id))
     product = result.scalar_one_or_none()
     if not product:

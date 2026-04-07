@@ -38,10 +38,16 @@ class OrderStatusUpdate(BaseModel):
     status: OrderStatus
 
 
+class OrderConvertToSale(BaseModel):
+    payment_method: Literal["cash", "card", "mobile_money"]
+    notes: str | None = None
+
+
 class OrderOut(BaseModel):
     id: int
     order_number: str
     customer_id: int
+    sale_id: int | None = None
     status: str
     subtotal: Decimal
     discount: Decimal
@@ -58,6 +64,7 @@ class OrderListOut(BaseModel):
     id: int
     order_number: str
     customer_id: int
+    sale_id: int | None = None
     status: str
     total: Decimal
     created_at: datetime

@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends
@@ -7,9 +7,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from ..models import Order, PreOrder, Product, ProductVariant, Sale, Customer
+from ..models import Customer, Order, PreOrder, Product, ProductVariant, Sale
+from ..utils.deps import get_current_user
 
-router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
+router = APIRouter(prefix="/dashboard", tags=["Dashboard"], dependencies=[Depends(get_current_user)])
 
 
 class RecentTransaction(BaseModel):

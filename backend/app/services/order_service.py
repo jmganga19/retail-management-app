@@ -5,8 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from ..models import Order, OrderItem, ProductVariant
-from ..schemas.order import OrderCreate
+from ..models import Order, OrderItem, ProductVariant, Sale, SaleItem
+from ..schemas.order import OrderCreate, OrderConvertToSale
 from ..utils.number_generator import generate_number
 
 VALID_TRANSITIONS: dict[str, set[str]] = {
@@ -84,3 +84,91 @@ async def update_order_status(db: AsyncSession, order_id: int, new_status: str) 
     await db.commit()
     await db.refresh(order)
     return order
+
+
+async def convert_order_to_sale(db: AsyncSession, order_id: int, payload: OrderConvertToSale) -> Sale:
+    result = await db.execute(
+        select(Order)
+        .options(selectinload(Order.items).selectinload(OrderItem.variant))
+        .where(Order.id == order_id)
+    )
+    order = result.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    if order.status != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Only completed orders can be converted to sales",
+        )
+
+    if order.sale_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Order already converted to sale",
+        )
+
+    if not order.items:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Order has no items to convert",
+        )
+
+    for item in order.items:
+        lock_result = await db.execute(
+            select(ProductVariant)
+            .where(ProductVariant.id == item.variant_id)
+            .with_for_update()
+        )
+        variant = lock_result.scalar_one_or_none()
+        if not variant:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Variant {item.variant_id} not found",
+            )
+        if variant.stock_qty < item.quantity:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Insufficient stock for variant {item.variant_id}: "
+                    f"available {variant.stock_qty}, requested {item.quantity}"
+                ),
+            )
+        variant.stock_qty -= item.quantity
+
+    sale_number = await generate_number(db, Sale, "sale_number", "SAL")
+
+    sale_notes = payload.notes if payload.notes is not None else order.notes
+    sale = Sale(
+        sale_number=sale_number,
+        customer_id=order.customer_id,
+        payment_method=payload.payment_method,
+        subtotal=order.subtotal,
+        discount=order.discount,
+        total=order.total,
+        notes=sale_notes,
+    )
+    db.add(sale)
+    await db.flush()
+
+    for item in order.items:
+        db.add(
+            SaleItem(
+                sale_id=sale.id,
+                variant_id=item.variant_id,
+                quantity=item.quantity,
+                unit_price=item.unit_price,
+                subtotal=item.subtotal,
+            )
+        )
+
+    order.sale_id = sale.id
+
+    await db.commit()
+
+    sale_result = await db.execute(
+        select(Sale)
+        .options(selectinload(Sale.items).selectinload(SaleItem.variant))
+        .where(Sale.id == sale.id)
+    )
+    return sale_result.scalar_one()

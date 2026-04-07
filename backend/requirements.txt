@@ -5,4 +5,7 @@ asyncpg>=0.29
 alembic>=1.13
 pydantic>=2.7
 pydantic-settings>=2.2
+pydantic[email]>=2.7
 python-multipart>=0.0.9
+python-jose[cryptography]>=3.3
+passlib>=1.7

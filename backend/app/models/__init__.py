@@ -9,6 +9,9 @@ from .order import Order
 from .order_item import OrderItem
 from .preorder import PreOrder
 from .preorder_item import PreOrderItem
+from .user import User
+from .audit_log import AuditLog
+from .system_setting import SystemSetting
 
 __all__ = [
     "Base",
@@ -23,4 +26,7 @@ __all__ = [
     "OrderItem",
     "PreOrder",
     "PreOrderItem",
+    "User",
+    "AuditLog",
+    "SystemSetting",
 ]

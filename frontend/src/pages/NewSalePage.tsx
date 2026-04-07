@@ -15,7 +15,7 @@ interface CartLine {
 }
 
 const fmt = (n: number) =>
-  n.toLocaleString('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits: 2 })
+  n.toLocaleString('en-TZ', { style: 'currency', currency: 'TZS', minimumFractionDigits: 2 })
 
 export default function NewSalePage() {
   const navigate = useNavigate()
@@ -165,7 +165,7 @@ export default function NewSalePage() {
           ]}
         />
         <Input
-          label="Discount (KES)"
+          label="Discount (TZS)"
           type="number"
           min="0"
           value={discount}
@@ -191,3 +191,4 @@ export default function NewSalePage() {
     </div>
   )
 }
+

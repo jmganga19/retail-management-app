@@ -5,10 +5,12 @@ from sqlalchemy.orm import selectinload
 
 from ..database import get_db
 from ..models import Order, OrderItem
-from ..schemas.order import OrderCreate, OrderListOut, OrderOut, OrderStatusUpdate
-from ..services.order_service import create_order, update_order_status
+from ..schemas.order import OrderConvertToSale, OrderCreate, OrderListOut, OrderOut, OrderStatusUpdate
+from ..schemas.sale import SaleOut
+from ..services.order_service import convert_order_to_sale, create_order, update_order_status
+from ..utils.deps import get_current_user
 
-router = APIRouter(prefix="/orders", tags=["Orders"])
+router = APIRouter(prefix="/orders", tags=["Orders"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/", response_model=list[OrderListOut])
@@ -58,6 +60,15 @@ async def change_order_status(
         .where(Order.id == order.id)
     )
     return result.scalar_one()
+
+
+@router.post("/{order_id}/convert-to-sale", response_model=SaleOut, status_code=status.HTTP_201_CREATED)
+async def convert_to_sale(
+    order_id: int,
+    payload: OrderConvertToSale,
+    db: AsyncSession = Depends(get_db),
+):
+    return await convert_order_to_sale(db, order_id, payload)
 
 
 @router.delete("/{order_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -5,8 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..models import Customer
 from ..schemas.customer import CustomerCreate, CustomerOut, CustomerUpdate
+from ..utils.deps import get_current_user
 
-router = APIRouter(prefix="/customers", tags=["Customers"])
+router = APIRouter(prefix="/customers", tags=["Customers"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/", response_model=list[CustomerOut])

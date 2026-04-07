@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { cancelOrder, createOrder, getOrder, getOrders, updateOrderStatus } from '../api/orders'
-import type { OrderCreate, OrderStatus } from '../types'
+import { cancelOrder, convertOrderToSale, createOrder, getOrder, getOrders, updateOrderStatus } from '../api/orders'
+import type { OrderConvertToSale, OrderCreate, OrderStatus } from '../types'
 
 export const useOrders = (params?: { status?: string }) =>
   useQuery({ queryKey: ['orders', params], queryFn: () => getOrders(params) })
@@ -25,6 +25,20 @@ export const useUpdateOrderStatus = () => {
     mutationFn: ({ id, status }: { id: number; status: OrderStatus }) =>
       updateOrderStatus(id, status),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['orders'] }),
+  })
+}
+
+export const useConvertOrderToSale = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: OrderConvertToSale }) =>
+      convertOrderToSale(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['orders'] })
+      qc.invalidateQueries({ queryKey: ['sales'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+      qc.invalidateQueries({ queryKey: ['products'] })
+    },
   })
 }
 

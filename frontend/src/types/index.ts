@@ -136,6 +136,7 @@ export interface Order {
   id: number
   order_number: string
   customer_id: number
+  sale_id: number | null
   status: OrderStatus
   subtotal: string
   discount: string
@@ -150,6 +151,7 @@ export interface OrderListItem {
   id: number
   order_number: string
   customer_id: number
+  sale_id: number | null
   status: OrderStatus
   total: string
   created_at: string
@@ -160,6 +162,11 @@ export interface OrderCreate {
   discount?: number
   notes?: string
   items: OrderItemCreate[]
+}
+
+export interface OrderConvertToSale {
+  payment_method: 'cash' | 'card' | 'mobile_money'
+  notes?: string
 }
 
 // ---- Pre-orders ----

@@ -9,8 +9,9 @@ from ..database import get_db
 from ..models import Sale, SaleItem
 from ..schemas.sale import SaleCreate, SaleListOut, SaleOut
 from ..services.sale_service import create_sale, void_sale
+from ..utils.deps import get_current_user
 
-router = APIRouter(prefix="/sales", tags=["Sales"])
+router = APIRouter(prefix="/sales", tags=["Sales"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/", response_model=list[SaleListOut])

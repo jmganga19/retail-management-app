@@ -17,8 +17,9 @@ from ..services.preorder_service import (
     update_deposit,
     update_preorder_status,
 )
+from ..utils.deps import get_current_user
 
-router = APIRouter(prefix="/preorders", tags=["Pre-orders"])
+router = APIRouter(prefix="/preorders", tags=["Pre-orders"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/", response_model=list[PreOrderListOut])

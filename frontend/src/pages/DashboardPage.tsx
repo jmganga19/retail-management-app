@@ -4,7 +4,7 @@ import { useDashboard } from '../hooks/useDashboard'
 import type { RecentTransaction } from '../types'
 
 const fmt = (n: string | number) =>
-  Number(n).toLocaleString('en-US', { style: 'currency', currency: 'KES', minimumFractionDigits: 2 })
+  Number(n).toLocaleString('en-TZ', { style: 'currency', currency: 'TZS', minimumFractionDigits: 2 })
 
 const fmtDate = (d: string) => new Date(d).toLocaleString()
 
@@ -80,3 +80,4 @@ export default function DashboardPage() {
     </div>
   )
 }
+

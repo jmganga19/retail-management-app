@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
-from .routers import categories, products, customers, sales, orders, preorders, dashboard
+from .routers import categories, products, customers, sales, orders, preorders, dashboard, auth, users, audit_logs, settings as app_settings
 
 app = FastAPI(title="Retail Management System", version="1.0.0")
 
@@ -15,6 +15,10 @@ app.add_middleware(
 )
 
 PREFIX = "/api/v1"
+app.include_router(auth.router, prefix=PREFIX)
+app.include_router(users.router, prefix=PREFIX)
+app.include_router(audit_logs.router, prefix=PREFIX)
+app.include_router(app_settings.router, prefix=PREFIX)
 app.include_router(categories.router, prefix=PREFIX)
 app.include_router(products.router, prefix=PREFIX)
 app.include_router(customers.router, prefix=PREFIX)

@@ -149,7 +149,7 @@ export default function NewPreorderForm({ open, onClose }: NewPreorderFormProps)
 
         <div className="grid grid-cols-2 gap-4">
           <Input
-            label={`Deposit (KES) — Total: ${total.toLocaleString('en-KE', { style: 'currency', currency: 'KES' })}`}
+            label={`Deposit (TZS) — Total: ${total.toLocaleString('en-TZ', { style: 'currency', currency: 'TZS' })}`}
             type="number"
             min="0"
             max={total}
@@ -162,3 +162,4 @@ export default function NewPreorderForm({ open, onClose }: NewPreorderFormProps)
     </Modal>
   )
 }
+
