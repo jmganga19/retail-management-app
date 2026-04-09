@@ -53,10 +53,10 @@ interface AuditFilters {
 }
 
 export const getUsers = (params?: UserFilters) =>
-  client.get<SystemUser[]>('/users', { params }).then(r => r.data)
+  client.get<SystemUser[]>('/users/', { params }).then(r => r.data)
 
 export const createUser = (payload: CreateUserPayload) =>
-  client.post<SystemUser>('/users', payload).then(r => r.data)
+  client.post<SystemUser>('/users/', payload).then(r => r.data)
 
 export const updateUser = (id: number, payload: UpdateUserPayload) =>
   client.put<SystemUser>(`/users/${id}`, payload).then(r => r.data)
@@ -68,4 +68,6 @@ export const deleteUser = (id: number) =>
   client.delete(`/users/${id}`)
 
 export const getAuditLogs = (params?: AuditFilters) =>
-  client.get<AuditLogEntry[]>('/audit-logs', { params }).then(r => r.data)
+  client.get<AuditLogEntry[]>('/audit-logs/', { params }).then(r => r.data)
+
+

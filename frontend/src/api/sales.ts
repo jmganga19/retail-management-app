@@ -11,12 +11,13 @@ interface SaleFilters {
 }
 
 export const getSales = (filters: SaleFilters = {}) =>
-  client.get<SaleListItem[]>('/sales', { params: filters }).then(r => r.data)
+  client.get<SaleListItem[]>('/sales/', { params: filters }).then(r => r.data)
 
 export const getSale = (id: number) =>
   client.get<Sale>(`/sales/${id}`).then(r => r.data)
 
 export const createSale = (data: SaleCreate) =>
-  client.post<Sale>('/sales', data).then(r => r.data)
+  client.post<Sale>('/sales/', data).then(r => r.data)
 
 export const voidSale = (id: number) => client.delete(`/sales/${id}`)
+
