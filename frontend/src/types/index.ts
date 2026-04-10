@@ -3,7 +3,7 @@ export interface Category {
   id: number
   name: string
   slug: string
-  type: 'cosmetics' | 'clothes' | 'shoes'
+  type: string
   created_at: string
 }
 
@@ -246,6 +246,7 @@ export interface DashboardSummary {
   low_stock_count: number
   recent_transactions: RecentTransaction[]
 }
+
 
 
 
