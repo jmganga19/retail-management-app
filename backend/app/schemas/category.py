@@ -1,13 +1,12 @@
 from datetime import datetime
-from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CategoryBase(BaseModel):
     name: str
     slug: str
-    type: Literal["cosmetics", "clothes", "shoes"]
+    type: str = Field(min_length=1, max_length=50)
 
 
 class CategoryCreate(CategoryBase):
@@ -17,7 +16,7 @@ class CategoryCreate(CategoryBase):
 class CategoryUpdate(BaseModel):
     name: str | None = None
     slug: str | None = None
-    type: Literal["cosmetics", "clothes", "shoes"] | None = None
+    type: str | None = Field(default=None, min_length=1, max_length=50)
 
 
 class CategoryOut(CategoryBase):

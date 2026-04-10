@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from ..models import Category, User
+from ..models import Category, Product, User
 from ..schemas.category import CategoryCreate, CategoryOut, CategoryUpdate
 from ..utils.deps import get_current_user, require_manager_or_admin
 
@@ -66,5 +66,13 @@ async def delete_category(
     category = result.scalar_one_or_none()
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
+
+    in_use_count = await db.scalar(select(func.count(Product.id)).where(Product.category_id == category_id))
+    if (in_use_count or 0) > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete category because it is used by products.",
+        )
+
     await db.delete(category)
     await db.commit()

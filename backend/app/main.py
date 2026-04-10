@@ -4,7 +4,20 @@ from sqlalchemy import text
 
 from .config import settings
 from .database import engine
-from .routers import categories, products, customers, sales, orders, preorders, dashboard, auth, users, audit_logs, settings as app_settings
+from .routers import (
+    audit_logs,
+    auth,
+    categories,
+    category_types,
+    customers,
+    dashboard,
+    orders,
+    preorders,
+    products,
+    sales,
+    settings as app_settings,
+    users,
+)
 
 app = FastAPI(title="Retail Management System", version="1.0.0")
 
@@ -21,6 +34,7 @@ app.include_router(auth.router, prefix=PREFIX)
 app.include_router(users.router, prefix=PREFIX)
 app.include_router(audit_logs.router, prefix=PREFIX)
 app.include_router(app_settings.router, prefix=PREFIX)
+app.include_router(category_types.router, prefix=PREFIX)
 app.include_router(categories.router, prefix=PREFIX)
 app.include_router(products.router, prefix=PREFIX)
 app.include_router(customers.router, prefix=PREFIX)
