@@ -74,13 +74,18 @@ export interface CustomerCreate {
 
 // ---- Sales ----
 export interface SaleItemCreate {
-  variant_id: number
+  variant_id?: number
   quantity: number
+  unit_price?: number
+  product_name?: string
+  variant_sku?: string
 }
 
 export interface SaleItem {
   id: number
-  variant_id: number
+  variant_id: number | null
+  product_name_snapshot?: string | null
+  sku_snapshot?: string | null
   quantity: number
   unit_price: string
   subtotal: string
@@ -96,6 +101,7 @@ export interface Sale {
   discount: string
   total: string
   notes: string | null
+  is_historical: boolean
   sold_at: string
   items: SaleItem[]
 }
@@ -108,6 +114,7 @@ export interface SaleListItem {
   product_names: string
   payment_method: string
   total: string
+  is_historical: boolean
   sold_at: string
 }
 
@@ -116,6 +123,7 @@ export interface SaleCreate {
   payment_method: 'cash' | 'card' | 'mobile_money'
   discount?: number
   notes?: string
+  is_historical?: boolean
   items: SaleItemCreate[]
 }
 
@@ -314,5 +322,7 @@ export interface StockOrderUpdate {
   notes?: string
   items: StockOrderItemCreate[]
 }
+
+
 
 

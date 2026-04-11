@@ -128,6 +128,7 @@ export default function SalesPage() {
     { key: 'number', header: 'Sale #', render: (s: SaleListItem) => <span className="font-mono text-xs">{s.sale_number}</span> },
     { key: 'customer', header: 'Customer', render: (s: SaleListItem) => s.customer_name ?? 'Walk-in' },
     { key: 'products', header: 'Product Name', render: (s: SaleListItem) => s.product_names },
+    { key: 'type', header: 'Type', render: (s: SaleListItem) => (s.is_historical ? <Badge label='Historical' color='gray' /> : <Badge label='Live' color='green' />) },
     {
       key: 'method',
       header: 'Payment',
@@ -197,5 +198,6 @@ export default function SalesPage() {
     </div>
   )
 }
+
 
 

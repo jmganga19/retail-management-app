@@ -15,6 +15,7 @@ from ..schemas.product import (
 )
 from ..services.audit_service import create_audit_log
 from ..utils.deps import get_current_user, require_manager_or_admin
+from ..utils.sku import generate_unique_sku
 
 router = APIRouter(prefix="/products", tags=["Products"], dependencies=[Depends(get_current_user)])
 
@@ -69,11 +70,20 @@ async def create_product(
     await db.flush()
 
     for v in payload.variants:
-        variant = ProductVariant(product_id=product.id, current_selling_price=product.price, **v.model_dump())
+        variant_data = v.model_dump()
+        if not (variant_data.get("sku") or "").strip():
+            variant_data["sku"] = await generate_unique_sku(db)
+        variant = ProductVariant(product_id=product.id, current_selling_price=product.price, **variant_data)
         db.add(variant)
 
     if not payload.variants:
-        db.add(ProductVariant(product_id=product.id, current_selling_price=product.price))
+        db.add(
+            ProductVariant(
+                product_id=product.id,
+                current_selling_price=product.price,
+                sku=await generate_unique_sku(db),
+            )
+        )
 
     await db.commit()
     await db.refresh(product)
@@ -141,7 +151,12 @@ async def add_variant(
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    variant = ProductVariant(product_id=product_id, current_selling_price=product.price, **payload.model_dump())
+
+    variant_data = payload.model_dump()
+    if not (variant_data.get("sku") or "").strip():
+        variant_data["sku"] = await generate_unique_sku(db)
+
+    variant = ProductVariant(product_id=product_id, current_selling_price=product.price, **variant_data)
     db.add(variant)
     await db.commit()
     await db.refresh(variant)

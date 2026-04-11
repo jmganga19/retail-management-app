@@ -34,9 +34,12 @@ const templates: Record<TemplateKey, TemplateDef> = {
       'discount_tzs',
       'notes',
       'variant_id',
+      'variant_sku_optional',
+      'product_name_optional',
+      'unit_price_tzs',
       'quantity',
     ],
-    sampleRows: [['SALE-001', '', 'cash', '0', 'Walk-in sale', '101', '2']],
+    sampleRows: [['SALE-001', '', 'cash', '0', 'Historical migration', '', 'CUCCI-OUD-50', 'Cucci Oud', '85000', '2']],
   },
   orders: {
     filename: 'orders_template.csv',
@@ -115,3 +118,4 @@ export function downloadCsvTemplate(key: TemplateKey) {
   a.remove()
   URL.revokeObjectURL(url)
 }
+

@@ -101,6 +101,16 @@ const navItems: NavItem[] = [
       </svg>
     ),
   },
+  {
+    to: '/data-migration',
+    label: 'Data Migration',
+    allowedRoles: ['admin', 'manager'],
+    icon: (
+      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3M12 4v11m0 0l4-4m-4 4l-4-4" />
+      </svg>
+    ),
+  },
 ]
 
 const usersNavItem: NavItem = {

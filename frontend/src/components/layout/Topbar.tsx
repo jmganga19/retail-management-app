@@ -12,6 +12,7 @@ const titles: Record<string, string> = {
   '/orders': 'Orders',
   '/preorders': 'Pre-orders',
   '/customers': 'Customers',
+  '/data-migration': 'Data Migration',
   '/users': 'User Management',
   '/settings': 'Settings',
   '/stock-audit': 'Stock Audit',
@@ -42,4 +43,5 @@ export default function Topbar() {
     </header>
   )
 }
+
 

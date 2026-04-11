@@ -29,6 +29,7 @@ from ..schemas.stock_order import (
 )
 from ..services.audit_service import create_audit_log
 from ..utils.deps import get_current_user, require_manager_or_admin
+from ..utils.sku import generate_unique_sku
 
 router = APIRouter(prefix="/stock-orders", tags=["Stock Orders"], dependencies=[Depends(get_current_user)])
 
@@ -355,11 +356,12 @@ async def receive_stock_order(
                 db.add(product)
                 await db.flush()
 
+                auto_sku = (item.variant_sku or '').strip() or await generate_unique_sku(db)
                 variant = ProductVariant(
                     product_id=product.id,
                     size=item.variant_size,
                     color=item.variant_color,
-                    sku=item.variant_sku,
+                    sku=auto_sku,
                     stock_qty=0,
                     current_selling_price=product.price,
                 )
@@ -444,3 +446,5 @@ async def receive_stock_order(
     )
     updated = refreshed.scalar_one()
     return _to_out(updated, pricing_warnings=warnings)
+
+

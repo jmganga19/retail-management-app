@@ -14,10 +14,17 @@ const esc = (v: string | number | null | undefined) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
 
-const itemLabel = (item: { variant: { sku: string | null; size: string | null; color: string | null } | null }) => {
-  if (!item.variant) return 'Variant'
+const itemLabel = (item: {
+  variant: { sku: string | null; size: string | null; color: string | null } | null
+  product_name_snapshot?: string | null
+  sku_snapshot?: string | null
+}) => {
+  if (!item.variant) {
+    const fallback = [item.product_name_snapshot, item.sku_snapshot].filter(Boolean).join(' / ')
+    return fallback || 'Historical Item'
+  }
   const parts = [item.variant.sku, item.variant.size, item.variant.color].filter(Boolean)
-  return parts.length ? parts.join(' / ') : 'Default Variant'
+  return parts.length ? parts.join(' / ') : item.product_name_snapshot || 'Default Variant'
 }
 
 interface PrintOptions {
@@ -169,3 +176,4 @@ export function printPreorderInvoice(preorder: PreOrder, options?: PrintOptions)
     </div>`,
   )
 }
+

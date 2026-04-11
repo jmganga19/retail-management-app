@@ -5,6 +5,7 @@ import AppShell from './components/layout/AppShell'
 import CategoriesPage from './pages/CategoriesPage'
 import CustomersPage from './pages/CustomersPage'
 import DashboardPage from './pages/DashboardPage'
+import DataMigrationPage from './pages/DataMigrationPage'
 import LoginPage from './pages/LoginPage'
 import NewSalePage from './pages/NewSalePage'
 import OrdersPage from './pages/OrdersPage'
@@ -68,6 +69,14 @@ export default function App() {
               element={
                 <RequireRoles allowed={['admin', 'manager']}>
                   <CustomersPage />
+                </RequireRoles>
+              }
+            />
+            <Route
+              path="data-migration"
+              element={
+                <RequireRoles allowed={['admin', 'manager']}>
+                  <DataMigrationPage />
                 </RequireRoles>
               }
             />

@@ -8,13 +8,18 @@ from .product import VariantOut
 
 
 class SaleItemCreate(BaseModel):
-    variant_id: int
+    variant_id: int | None = None
     quantity: int = Field(gt=0)
+    unit_price: Decimal | None = Field(default=None, gt=0)
+    product_name: str | None = None
+    variant_sku: str | None = None
 
 
 class SaleItemOut(BaseModel):
     id: int
-    variant_id: int
+    variant_id: int | None
+    product_name_snapshot: str | None = None
+    sku_snapshot: str | None = None
     quantity: int
     unit_price: Decimal
     subtotal: Decimal
@@ -28,6 +33,7 @@ class SaleCreate(BaseModel):
     payment_method: Literal["cash", "card", "mobile_money"]
     discount: Decimal = Field(default=Decimal("0"), ge=0)
     notes: str | None = None
+    is_historical: bool = False
     items: list[SaleItemCreate] = Field(min_length=1)
 
 
@@ -40,6 +46,7 @@ class SaleOut(BaseModel):
     discount: Decimal
     total: Decimal
     notes: str | None
+    is_historical: bool
     sold_at: datetime
     items: list[SaleItemOut] = []
 
@@ -54,6 +61,7 @@ class SaleListOut(BaseModel):
     product_names: str
     payment_method: str
     total: Decimal
+    is_historical: bool
     sold_at: datetime
 
     model_config = {"from_attributes": True}

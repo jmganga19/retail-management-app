@@ -51,6 +51,11 @@ async def list_sales(
                 for item in sale.items
                 if item.variant is not None and getattr(item.variant, "product", None) is not None
             }
+            | {
+                item.product_name_snapshot
+                for item in sale.items
+                if item.product_name_snapshot is not None and item.product_name_snapshot.strip()
+            }
         )
         rows.append(
             SaleListOut(
@@ -61,6 +66,7 @@ async def list_sales(
                 product_names=", ".join(product_names) if product_names else "-",
                 payment_method=sale.payment_method,
                 total=sale.total,
+                is_historical=sale.is_historical,
                 sold_at=sale.sold_at,
             )
         )
@@ -106,5 +112,5 @@ async def void_sale_endpoint(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_manager_or_admin),
 ):
-    """Void a sale and restore stock."""
+    """Void a sale and restore stock for non-historical sales."""
     await void_sale(db, sale_id, actor_user_id=current_user.id)
