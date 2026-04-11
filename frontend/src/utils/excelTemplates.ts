@@ -1,4 +1,4 @@
-export type TemplateKey = 'products' | 'sales' | 'orders' | 'preorders' | 'customers'
+export type TemplateKey = 'products' | 'sales' | 'orders' | 'preorders' | 'customers' | 'stock_orders'
 
 interface TemplateDef {
   filename: string
@@ -69,6 +69,23 @@ const templates: Record<TemplateKey, TemplateDef> = {
     filename: 'customers_template.csv',
     headers: ['name', 'phone', 'email'],
     sampleRows: [['Amina Said', '255712345678', 'amina@example.com']],
+  },
+  stock_orders: {
+    filename: 'stock_orders_template.csv',
+    headers: [
+      'stock_ref',
+      'variant_id',
+      'item_name',
+      'category_id_optional',
+      'variant_sku_optional',
+      'variant_size_optional',
+      'variant_color_optional',
+      'quantity',
+      'buying_price_tzs',
+      'selling_price_tzs',
+      'notes',
+    ],
+    sampleRows: [['STK-001', '', 'Aveeno', '1', 'AVEENO-200ML', '200ml', '', '20', '19800', '45000', 'Supplier order April']],
   },
 }
 

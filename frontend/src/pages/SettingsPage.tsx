@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
+import Select from '../components/ui/Select'
 import { useSettings, useUpdateSettings } from '../hooks/useSettings'
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
@@ -20,6 +21,8 @@ export default function SettingsPage() {
   const [appName, setAppName] = useState('RetailPro')
   const [currencyCode, setCurrencyCode] = useState('TZS')
   const [businessPhone, setBusinessPhone] = useState('')
+  const [pricingPolicy, setPricingPolicy] = useState<'manual' | 'latest_received'>('manual')
+  const [lowMarginWarningPercent, setLowMarginWarningPercent] = useState('10')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -28,6 +31,8 @@ export default function SettingsPage() {
     setAppName(data.app_name)
     setCurrencyCode(data.currency_code)
     setBusinessPhone(data.business_phone ?? '')
+    setPricingPolicy(data.pricing_update_policy)
+    setLowMarginWarningPercent(String(data.low_margin_warning_percent))
   }, [data])
 
   if (!user) return null
@@ -51,6 +56,23 @@ export default function SettingsPage() {
             <Input label="Application Name" value={appName} onChange={e => setAppName(e.target.value)} />
             <Input label="Currency Code" value={currencyCode} onChange={e => setCurrencyCode(e.target.value.toUpperCase())} />
             <Input label="Business Phone (optional)" value={businessPhone} onChange={e => setBusinessPhone(e.target.value)} />
+            <Select
+              label="Stock Pricing Policy"
+              value={pricingPolicy}
+              onChange={e => setPricingPolicy(e.target.value as 'manual' | 'latest_received')}
+              options={[
+                { value: 'manual', label: 'Manual (recommended)' },
+                { value: 'latest_received', label: 'Auto-update to latest received price' },
+              ]}
+            />
+            <Input
+              label="Low Margin Warning %"
+              type="number"
+              min="0"
+              step="0.01"
+              value={lowMarginWarningPercent}
+              onChange={e => setLowMarginWarningPercent(e.target.value)}
+            />
 
             <div className="pt-2">
               <Button
@@ -67,6 +89,13 @@ export default function SettingsPage() {
                     return
                   }
 
+                  const threshold = Number(lowMarginWarningPercent)
+                  if (Number.isNaN(threshold) || threshold < 0) {
+                    setError('Low margin warning % must be zero or more')
+                    setMessage('')
+                    return
+                  }
+
                   try {
                     setError('')
                     setMessage('')
@@ -74,6 +103,8 @@ export default function SettingsPage() {
                       app_name: appName.trim(),
                       currency_code: currencyCode.trim().toUpperCase(),
                       business_phone: businessPhone.trim() || null,
+                      pricing_update_policy: pricingPolicy,
+                      low_margin_warning_percent: threshold,
                     })
                     setMessage('Settings updated successfully.')
                   } catch (e) {

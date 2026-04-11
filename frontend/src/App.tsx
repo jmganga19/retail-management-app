@@ -14,6 +14,7 @@ import ReportsPage from './pages/ReportsPage'
 import SalesPage from './pages/SalesPage'
 import SettingsPage from './pages/SettingsPage'
 import StockAuditPage from './pages/StockAuditPage'
+import StockManagementPage from './pages/StockManagementPage'
 import UsersPage from './pages/UsersPage'
 
 export default function App() {
@@ -52,6 +53,14 @@ export default function App() {
             />
             <Route path="sales" element={<SalesPage />} />
             <Route path="sales/new" element={<NewSalePage />} />
+            <Route
+              path="stock-management"
+              element={
+                <RequireRoles allowed={['admin', 'manager']}>
+                  <StockManagementPage />
+                </RequireRoles>
+              }
+            />
             <Route path="orders" element={<OrdersPage />} />
             <Route path="preorders" element={<PreordersPage />} />
             <Route

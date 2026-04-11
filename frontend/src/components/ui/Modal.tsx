@@ -6,7 +6,7 @@ interface ModalProps {
   title: string
   children: ReactNode
   footer?: ReactNode
-  size?: 'sm' | 'md' | 'lg' | 'xl'
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 }
 
 const sizeClasses = {
@@ -14,6 +14,7 @@ const sizeClasses = {
   md: 'max-w-md',
   lg: 'max-w-lg',
   xl: 'max-w-2xl',
+  '2xl': 'max-w-6xl',
 }
 
 export default function Modal({ open, onClose, title, children, footer, size = 'md' }: ModalProps) {
@@ -57,3 +58,4 @@ export default function Modal({ open, onClose, title, children, footer, size = '
     </div>
   )
 }
+

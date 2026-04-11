@@ -16,6 +16,7 @@ from .routers import (
     products,
     sales,
     settings as app_settings,
+    stock_orders,
     users,
 )
 
@@ -41,6 +42,7 @@ app.include_router(customers.router, prefix=PREFIX)
 app.include_router(sales.router, prefix=PREFIX)
 app.include_router(orders.router, prefix=PREFIX)
 app.include_router(preorders.router, prefix=PREFIX)
+app.include_router(stock_orders.router, prefix=PREFIX)
 app.include_router(dashboard.router, prefix=PREFIX)
 
 

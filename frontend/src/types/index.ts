@@ -15,6 +15,9 @@ export interface Variant {
   color: string | null
   sku: string | null
   stock_qty: number
+  last_buying_price?: string | null
+  average_buying_price?: string | null
+  current_selling_price?: string | null
 }
 
 export interface Product {
@@ -246,9 +249,70 @@ export interface DashboardSummary {
   low_stock_count: number
   recent_transactions: RecentTransaction[]
 }
+// ---- Stock Orders (Stock Management) ----
+export interface StockOrderItemCreate {
+  variant_id?: number
+  item_name?: string
+  category_id?: number
+  variant_size?: string
+  variant_color?: string
+  variant_sku?: string
+  quantity: number
+  buying_price: number
+  selling_price: number
+}
 
+export interface StockOrderItem {
+  id: number
+  variant_id: number | null
+  category_id: number | null
+  item_name: string
+  variant_size: string | null
+  variant_color: string | null
+  variant_sku: string | null
+  variant_label: string
+  quantity: number
+  buying_price: string
+  selling_price: string
+  purchase_amount: string
+  total_selling_amount: string
+  profit_amount: string
+}
 
+export interface StockOrder {
+  id: number
+  order_number: string
+  notes: string | null
+  status: 'pending' | 'received' | string
+  received_at: string | null
+  total_purchase: string
+  total_potential_sales: string
+  total_profit: string
+  created_at: string
+  items: StockOrderItem[]
+  pricing_warnings?: string[]
+}
 
+export interface StockOrderListItem {
+  id: number
+  order_number: string
+  status: 'pending' | 'received' | string
+  item_count: number
+  item_summary: string
+  total_purchase: string
+  total_potential_sales: string
+  total_profit: string
+  created_at: string
+}
 
+export interface StockOrderCreate {
+  notes?: string
+  items: StockOrderItemCreate[]
+}
+
+export interface StockOrderUpdate {
+  notes?: string
+  items: StockOrderItemCreate[]
+}
 
 

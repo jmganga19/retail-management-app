@@ -64,6 +64,16 @@ const navItems: NavItem[] = [
     ),
   },
   {
+    to: '/stock-management',
+    label: 'Stock Management',
+    allowedRoles: ['admin', 'manager'],
+    icon: (
+      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M6 7V5a2 2 0 012-2h8a2 2 0 012 2v2m-1 4H5m2 0v8a2 2 0 002 2h6a2 2 0 002-2v-8" />
+      </svg>
+    ),
+  },
+  {
     to: '/orders',
     label: 'Orders',
     icon: (
@@ -174,4 +184,3 @@ export default function Sidebar() {
     </aside>
   )
 }
-

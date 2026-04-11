@@ -25,6 +25,9 @@ class VariantUpdate(BaseModel):
 class VariantOut(VariantBase):
     id: int
     product_id: int
+    last_buying_price: Decimal | None = None
+    average_buying_price: Decimal | None = None
+    current_selling_price: Decimal | None = None
 
     model_config = {"from_attributes": True}
 

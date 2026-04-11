@@ -69,11 +69,11 @@ async def create_product(
     await db.flush()
 
     for v in payload.variants:
-        variant = ProductVariant(product_id=product.id, **v.model_dump())
+        variant = ProductVariant(product_id=product.id, current_selling_price=product.price, **v.model_dump())
         db.add(variant)
 
     if not payload.variants:
-        db.add(ProductVariant(product_id=product.id))
+        db.add(ProductVariant(product_id=product.id, current_selling_price=product.price))
 
     await db.commit()
     await db.refresh(product)
@@ -138,9 +138,10 @@ async def add_variant(
     _: User = Depends(require_manager_or_admin),
 ):
     result = await db.execute(select(Product).where(Product.id == product_id))
-    if not result.scalar_one_or_none():
+    product = result.scalar_one_or_none()
+    if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    variant = ProductVariant(product_id=product_id, **payload.model_dump())
+    variant = ProductVariant(product_id=product_id, current_selling_price=product.price, **payload.model_dump())
     db.add(variant)
     await db.commit()
     await db.refresh(variant)
