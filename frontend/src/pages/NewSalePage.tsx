@@ -3,15 +3,15 @@ import { useNavigate } from 'react-router-dom'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import Select from '../components/ui/Select'
+import { useCreateCustomer, useCustomers } from '../hooks/useCustomers'
 import { useProducts } from '../hooks/useProducts'
-import { useCustomers } from '../hooks/useCustomers'
 import { useCreateSale } from '../hooks/useSales'
-import type { Product, SaleItemCreate, Variant } from '../types'
+import type { Product, SaleItemCreate } from '../types'
 
 interface CartLine {
   product: Product
-  variant: Variant
   quantity: number
+  discount: number
 }
 
 const fmt = (n: number) =>
@@ -21,46 +21,57 @@ export default function NewSalePage() {
   const navigate = useNavigate()
   const { data: products = [] } = useProducts({ is_active: true })
   const { data: customers = [] } = useCustomers()
+  const createCustomer = useCreateCustomer()
   const createSale = useCreateSale()
 
   const [cart, setCart] = useState<CartLine[]>([])
   const [selectedProductId, setSelectedProductId] = useState('')
-  const [selectedVariantId, setSelectedVariantId] = useState('')
   const [qty, setQty] = useState(1)
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mobile_money'>('card')
   const [customerId, setCustomerId] = useState('')
-  const [discount, setDiscount] = useState(0)
+  const [newCustomerName, setNewCustomerName] = useState('')
   const [notes, setNotes] = useState('')
   const [error, setError] = useState('')
 
   const selectedProduct = products.find(p => String(p.id) === selectedProductId)
-  const selectedVariant = selectedProduct?.variants.find(v => String(v.id) === selectedVariantId)
-
   const addToCart = () => {
-    if (!selectedProduct || !selectedVariant) { setError('Select a product and variant.'); return }
+    if (!selectedProduct) { setError('Select a product.'); return }
     if (qty < 1) { setError('Quantity must be at least 1.'); return }
-    if (selectedVariant.stock_qty < qty) { setError(`Only ${selectedVariant.stock_qty} in stock.`); return }
     setCart(prev => {
-      const existing = prev.find(l => l.variant.id === selectedVariant.id)
-      if (existing) return prev.map(l => l.variant.id === selectedVariant.id ? { ...l, quantity: l.quantity + qty } : l)
-      return [...prev, { product: selectedProduct, variant: selectedVariant, quantity: qty }]
+      const existing = prev.find(l => l.product.id === selectedProduct.id)
+      if (existing) return prev.map(l => l.product.id === selectedProduct.id ? { ...l, quantity: l.quantity + qty } : l)
+      return [...prev, { product: selectedProduct, quantity: qty, discount: 0 }]
     })
-    setSelectedProductId(''); setSelectedVariantId(''); setQty(1); setError('')
+    setSelectedProductId('')
+    setQty(1)
+    setError('')
   }
 
   const subtotal = cart.reduce((s, l) => s + Number(l.product.price) * l.quantity, 0)
-  const total = subtotal - discount
+  const discountTotal = cart.reduce((s, l) => s + (l.discount || 0), 0)
+  const total = subtotal - discountTotal
 
   const handleSubmit = async () => {
     setError('')
     if (cart.length === 0) { setError('Cart is empty.'); return }
-    const items: SaleItemCreate[] = cart.map(l => ({ variant_id: l.variant.id, quantity: l.quantity }))
+    const items: SaleItemCreate[] = cart.map(l => ({
+      product_id: l.product.id,
+      quantity: l.quantity,
+      discount: l.discount || 0,
+    }))
     try {
+      let resolvedCustomerId: number | undefined
+      if (customerId) {
+        resolvedCustomerId = Number(customerId)
+      } else if (newCustomerName.trim()) {
+        const created = await createCustomer.mutateAsync({ name: newCustomerName.trim() })
+        resolvedCustomerId = created.id
+      }
+
       await createSale.mutateAsync({
         items,
         payment_method: paymentMethod,
-        customer_id: customerId ? Number(customerId) : undefined,
-        discount: discount || undefined,
+        customer_id: resolvedCustomerId,
         notes: notes || undefined,
       })
       navigate('/sales')
@@ -71,7 +82,6 @@ export default function NewSalePage() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-6xl">
-      {/* Item builder */}
       <div className="lg:col-span-2 space-y-4">
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
           <h2 className="font-semibold mb-4">Add Items</h2>
@@ -80,20 +90,9 @@ export default function NewSalePage() {
             <Select
               label="Product"
               value={selectedProductId}
-              onChange={e => { setSelectedProductId(e.target.value); setSelectedVariantId('') }}
+              onChange={e => { setSelectedProductId(e.target.value) }}
               options={products.map(p => ({ value: p.id, label: p.name }))}
               placeholder="Select product"
-            />
-            <Select
-              label="Variant"
-              value={selectedVariantId}
-              onChange={e => setSelectedVariantId(e.target.value)}
-              options={(selectedProduct?.variants ?? []).map(v => ({
-                value: v.id,
-                label: `${[v.size, v.color].filter(Boolean).join(' / ') || 'Default'} (${v.stock_qty} left)`,
-              }))}
-              placeholder="Select variant"
-              disabled={!selectedProduct}
             />
             <div className="flex gap-2 items-end">
               <Input label="Qty" type="number" min="1" value={qty} onChange={e => setQty(Number(e.target.value))} />
@@ -101,15 +100,14 @@ export default function NewSalePage() {
             </div>
           </div>
 
-          {/* Cart table */}
           <div className="rounded-lg border border-gray-100 overflow-hidden">
             <table className="min-w-full divide-y divide-gray-100 text-sm">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Product</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Variant</th>
                   <th className="px-4 py-2 text-right text-xs font-semibold text-gray-500">Qty</th>
                   <th className="px-4 py-2 text-right text-xs font-semibold text-gray-500">Unit</th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold text-gray-500">Discount</th>
                   <th className="px-4 py-2 text-right text-xs font-semibold text-gray-500">Subtotal</th>
                   <th className="px-4 py-2" />
                 </tr>
@@ -121,12 +119,23 @@ export default function NewSalePage() {
                   cart.map((l, idx) => (
                     <tr key={idx}>
                       <td className="px-4 py-2 font-medium">{l.product.name}</td>
-                      <td className="px-4 py-2 text-gray-500">
-                        {[l.variant.size, l.variant.color].filter(Boolean).join(' / ') || 'Default'}
-                      </td>
                       <td className="px-4 py-2 text-right">{l.quantity}</td>
                       <td className="px-4 py-2 text-right">{fmt(Number(l.product.price))}</td>
-                      <td className="px-4 py-2 text-right font-semibold">{fmt(Number(l.product.price) * l.quantity)}</td>
+                      <td className="px-4 py-2 text-right">
+                        <input
+                          type="number"
+                          min="0"
+                          className="w-28 rounded border border-gray-300 px-2 py-1 text-right text-xs"
+                          value={l.discount}
+                          onChange={e => {
+                            const next = Number(e.target.value || 0)
+                            const max = Number(l.product.price) * l.quantity
+                            const safe = Number.isNaN(next) ? 0 : Math.min(Math.max(next, 0), max)
+                            setCart(prev => prev.map((row, i) => (i === idx ? { ...row, discount: safe } : row)))
+                          }}
+                        />
+                      </td>
+                      <td className="px-4 py-2 text-right font-semibold">{fmt((Number(l.product.price) * l.quantity) - (l.discount || 0))}</td>
                       <td className="px-4 py-2 text-right">
                         <button
                           onClick={() => setCart(prev => prev.filter((_, i) => i !== idx))}
@@ -144,15 +153,20 @@ export default function NewSalePage() {
         </div>
       </div>
 
-      {/* Checkout panel */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 h-fit space-y-4">
         <h2 className="font-semibold">Checkout</h2>
         <Select
           label="Customer (optional)"
           value={customerId}
           onChange={e => setCustomerId(e.target.value)}
-          options={customers.map(c => ({ value: c.id, label: `${c.name}${c.phone ? ` · ${c.phone}` : ''}` }))}
+          options={customers.map(c => ({ value: c.id, label: `${c.name}${c.phone ? ` - ${c.phone}` : ''}` }))}
           placeholder="Walk-in"
+        />
+        <Input
+          label="Or New Customer Name"
+          value={newCustomerName}
+          onChange={e => setNewCustomerName(e.target.value)}
+          placeholder="Type customer name"
         />
         <Select
           label="Payment Method"
@@ -164,24 +178,17 @@ export default function NewSalePage() {
             { value: 'mobile_money', label: 'Mobile Money' },
           ]}
         />
-        <Input
-          label="Discount (TZS)"
-          type="number"
-          min="0"
-          value={discount}
-          onChange={e => setDiscount(Number(e.target.value))}
-        />
         <Input label="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
 
         <div className="border-t border-gray-100 pt-4 space-y-1 text-sm">
           <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
-          <div className="flex justify-between text-gray-600"><span>Discount</span><span>-{fmt(discount)}</span></div>
+          <div className="flex justify-between text-gray-600"><span>Discount</span><span>-{fmt(discountTotal)}</span></div>
           <div className="flex justify-between font-bold text-base text-gray-900 pt-1">
             <span>Total</span><span>{fmt(total)}</span>
           </div>
         </div>
 
-        <Button className="w-full" onClick={handleSubmit} loading={createSale.isPending}>
+        <Button className="w-full" onClick={handleSubmit} loading={createSale.isPending || createCustomer.isPending}>
           Complete Sale
         </Button>
         <Button variant="secondary" className="w-full" onClick={() => navigate('/sales')}>
@@ -191,4 +198,3 @@ export default function NewSalePage() {
     </div>
   )
 }
-

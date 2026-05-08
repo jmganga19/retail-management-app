@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { createPreorder, getPreorder } from '../api/preorders'
 import { useAuth } from '../auth/AuthContext'
 import NewPreorderForm from '../components/preorders/NewPreorderForm'
@@ -37,6 +38,7 @@ const nextStatus: Partial<Record<PreOrderStatus, PreOrderStatus>> = {
 
 export default function PreordersPage() {
   const qc = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuth()
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
@@ -52,6 +54,8 @@ export default function PreordersPage() {
   const { data: preorders = [], isLoading } = usePreorders({ status: statusFilter || undefined, q: search.trim() || undefined })
   const updateStatus = useUpdatePreorderStatus()
   const updateDeposit = useUpdateDeposit()
+  const focusParam = searchParams.get('focus')
+  const focusId = focusParam ? Number(focusParam) : NaN
 
   useEffect(() => {
     setCurrentPage(1)
@@ -66,6 +70,17 @@ export default function PreordersPage() {
     const start = (currentPage - 1) * PAGE_SIZE
     return preorders.slice(start, start + PAGE_SIZE)
   }, [preorders, currentPage])
+
+  useEffect(() => {
+    if (Number.isNaN(focusId)) return
+    if (!preorders.length) return
+    const target = preorders.find(p => p.id === focusId)
+    if (!target) return
+    openDepositModal(target)
+    const next = new URLSearchParams(searchParams)
+    next.delete('focus')
+    setSearchParams(next, { replace: true })
+  }, [focusId, preorders, searchParams, setSearchParams])
 
   const handleImport = async (rows: Record<string, string>[]): Promise<ImportOutcome> => {
     const groups = new Map<string, Record<string, string>[]>()

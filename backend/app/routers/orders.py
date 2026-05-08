@@ -4,11 +4,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..database import get_db
-from ..models import Order, OrderItem, ProductVariant, User
+from ..models import Order, OrderItem, User
 from ..schemas.order import OrderConvertToSale, OrderCreate, OrderListOut, OrderOut, OrderStatusUpdate
 from ..schemas.sale import SaleOut
 from ..services.order_service import convert_order_to_sale, create_order, update_order_status
-from ..utils.deps import get_current_user, require_manager_or_admin
+from ..utils.deps import get_current_user, require_manager_or_admin, require_staff_or_manager_or_admin
 
 router = APIRouter(prefix="/orders", tags=["Orders"], dependencies=[Depends(get_current_user)])
 
@@ -26,7 +26,7 @@ async def list_orders(
         select(Order)
         .options(
             selectinload(Order.customer),
-            selectinload(Order.items).selectinload(OrderItem.variant).selectinload(ProductVariant.product),
+            selectinload(Order.items).selectinload(OrderItem.product),
         )
     )
     if order_status:
@@ -42,9 +42,9 @@ async def list_orders(
     for order in orders:
         product_names = sorted(
             {
-                item.variant.product.name
+                item.product.name
                 for item in order.items
-                if item.variant is not None and getattr(item.variant, "product", None) is not None
+                if item.product is not None
             }
         )
         rows.append(
@@ -83,7 +83,7 @@ async def new_order(payload: OrderCreate, db: AsyncSession = Depends(get_db)):
 async def get_order(order_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Order)
-        .options(selectinload(Order.items).selectinload(OrderItem.variant))
+        .options(selectinload(Order.items).selectinload(OrderItem.product))
         .where(Order.id == order_id)
     )
     order = result.scalar_one_or_none()
@@ -97,12 +97,12 @@ async def change_order_status(
     order_id: int,
     payload: OrderStatusUpdate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_manager_or_admin),
+    _: User = Depends(require_staff_or_manager_or_admin),
 ):
     order = await update_order_status(db, order_id, payload.status)
     result = await db.execute(
         select(Order)
-        .options(selectinload(Order.items).selectinload(OrderItem.variant))
+        .options(selectinload(Order.items).selectinload(OrderItem.product))
         .where(Order.id == order.id)
     )
     return result.scalar_one()
@@ -113,7 +113,7 @@ async def convert_to_sale(
     order_id: int,
     payload: OrderConvertToSale,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_manager_or_admin),
+    current_user: User = Depends(require_staff_or_manager_or_admin),
 ):
     return await convert_order_to_sale(db, order_id, payload, actor_user_id=current_user.id)
 
@@ -125,3 +125,4 @@ async def cancel_order(
     _: User = Depends(require_manager_or_admin),
 ):
     await update_order_status(db, order_id, "cancelled")
+

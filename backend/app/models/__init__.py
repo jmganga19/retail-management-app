@@ -1,7 +1,6 @@
 from .base import Base, TimestampMixin
 from .category import Category
 from .product import Product
-from .product_variant import ProductVariant
 from .customer import Customer
 from .sale import Sale
 from .sale_item import SaleItem
@@ -21,7 +20,6 @@ __all__ = [
     "TimestampMixin",
     "Category",
     "Product",
-    "ProductVariant",
     "Customer",
     "Sale",
     "SaleItem",

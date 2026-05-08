@@ -1,5 +1,5 @@
 import client from './client'
-import type { Product, ProductCreate, Variant, VariantCreate, VariantUpdate } from '../types'
+import type { Product, ProductCreate } from '../types'
 
 interface ProductFilters {
   category_id?: number
@@ -25,13 +25,4 @@ export const updateProduct = (id: number, data: Partial<ProductCreate & { is_act
   client.put<Product>(`/products/${id}`, data).then(r => r.data)
 
 export const deleteProduct = (id: number) => client.delete(`/products/${id}`)
-
-export const addVariant = (productId: number, data: VariantCreate) =>
-  client.post<Variant>(`/products/${productId}/variants`, data).then(r => r.data)
-
-export const updateVariant = (productId: number, variantId: number, data: VariantUpdate) =>
-  client.patch<Variant>(`/products/${productId}/variants/${variantId}`, data).then(r => r.data)
-
-export const deleteVariant = (productId: number, variantId: number) =>
-  client.delete(`/products/${productId}/variants/${variantId}`)
 

@@ -26,11 +26,11 @@ export interface Product {
   name: string
   description: string | null
   price: string
+  stock_qty: number
   image_url: string | null
   low_stock_threshold: number
   is_active: boolean
   created_at: string
-  variants: Variant[]
 }
 
 export interface ProductCreate {
@@ -41,22 +41,11 @@ export interface ProductCreate {
   image_url?: string
   low_stock_threshold?: number
   created_at?: string
-  variants: VariantCreate[]
 }
 
-export interface VariantCreate {
-  size?: string
-  color?: string
-  sku?: string
-  stock_qty: number
-}
+export interface VariantCreate {}
 
-export interface VariantUpdate {
-  size?: string
-  color?: string
-  sku?: string
-  stock_qty?: number
-}
+export interface VariantUpdate {}
 
 // ---- Customers ----
 export interface Customer {
@@ -75,22 +64,21 @@ export interface CustomerCreate {
 
 // ---- Sales ----
 export interface SaleItemCreate {
-  variant_id?: number
+  product_id?: number
   quantity: number
   unit_price?: number
+  discount?: number
   product_name?: string
-  variant_sku?: string
 }
 
 export interface SaleItem {
   id: number
-  variant_id: number | null
+  product_id: number | null
   product_name_snapshot?: string | null
   sku_snapshot?: string | null
   quantity: number
   unit_price: string
   subtotal: string
-  variant: Variant | null
 }
 
 export interface Sale {
@@ -133,7 +121,8 @@ export interface SaleCreate {
 export type OrderStatus = 'pending' | 'confirmed' | 'processing' | 'completed' | 'cancelled'
 
 export interface OrderItemCreate {
-  variant_id: number
+  product_id?: number
+  variant_id?: number
   quantity: number
   unit_price: number
 }
@@ -191,7 +180,9 @@ export interface OrderConvertToSale {
 export type PreOrderStatus = 'pending' | 'arrived' | 'collected' | 'cancelled'
 
 export interface PreOrderItemCreate {
-  variant_id: number
+  product_id?: number
+  product_name?: string
+  category_id?: number
   quantity: number
   unit_price: number
 }
@@ -285,12 +276,10 @@ export interface DashboardSummary {
 }
 // ---- Stock Orders (Stock Management) ----
 export interface StockOrderItemCreate {
+  product_id?: number
   variant_id?: number
   item_name?: string
   category_id?: number
-  variant_size?: string
-  variant_color?: string
-  variant_sku?: string
   quantity: number
   buying_price: number
   selling_price: number

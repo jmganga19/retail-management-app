@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..database import get_db
-from ..models import PreOrder, PreOrderItem, ProductVariant, User
+from ..models import PreOrder, PreOrderItem, User
 from ..schemas.preorder import (
     PreOrderCreate,
     PreOrderDepositUpdate,
@@ -34,7 +34,7 @@ async def list_preorders(
         select(PreOrder)
         .options(
             selectinload(PreOrder.customer),
-            selectinload(PreOrder.items).selectinload(PreOrderItem.variant).selectinload(ProductVariant.product),
+            selectinload(PreOrder.items).selectinload(PreOrderItem.product),
         )
     )
     if preorder_status:
@@ -48,9 +48,9 @@ async def list_preorders(
     for preorder in preorders:
         product_names = sorted(
             {
-                item.variant.product.name
+                item.product.name
                 for item in preorder.items
-                if item.variant is not None and getattr(item.variant, "product", None) is not None
+                if item.product is not None
             }
         )
         rows.append(
@@ -91,7 +91,7 @@ async def new_preorder(payload: PreOrderCreate, db: AsyncSession = Depends(get_d
 async def get_preorder(preorder_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(PreOrder)
-        .options(selectinload(PreOrder.items).selectinload(PreOrderItem.variant))
+        .options(selectinload(PreOrder.items).selectinload(PreOrderItem.product))
         .where(PreOrder.id == preorder_id)
     )
     preorder = result.scalar_one_or_none()
@@ -110,7 +110,7 @@ async def change_preorder_status(
     preorder = await update_preorder_status(db, preorder_id, payload.status)
     result = await db.execute(
         select(PreOrder)
-        .options(selectinload(PreOrder.items).selectinload(PreOrderItem.variant))
+        .options(selectinload(PreOrder.items).selectinload(PreOrderItem.product))
         .where(PreOrder.id == preorder.id)
     )
     return result.scalar_one()
@@ -126,7 +126,7 @@ async def change_deposit(
     preorder = await update_deposit(db, preorder_id, payload.deposit_amount)
     result = await db.execute(
         select(PreOrder)
-        .options(selectinload(PreOrder.items).selectinload(PreOrderItem.variant))
+        .options(selectinload(PreOrder.items).selectinload(PreOrderItem.product))
         .where(PreOrder.id == preorder.id)
     )
     return result.scalar_one()
@@ -139,3 +139,4 @@ async def cancel_preorder(
     _: User = Depends(require_manager_or_admin),
 ):
     await update_preorder_status(db, preorder_id, "cancelled")
+

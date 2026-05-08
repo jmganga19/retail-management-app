@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { createProduct } from '../api/products'
 import ProductForm from '../components/products/ProductForm'
-import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import ImportCsvButton, { type ImportOutcome } from '../components/ui/ImportCsvButton'
 import Pagination from '../components/ui/Pagination'
@@ -34,7 +33,6 @@ interface ProductImportGroup {
   price_tzs: string
   image_url?: string
   low_stock_threshold?: string
-  variants: Array<{ variant_size?: string; variant_color?: string; variant_sku?: string; variant_stock_qty?: string }>
 }
 
 export default function ProductsPage() {
@@ -93,15 +91,7 @@ export default function ProductsPage() {
         price_tzs: price,
         image_url: row.image_url || undefined,
         low_stock_threshold: row.low_stock_threshold || undefined,
-        variants: [],
       }
-
-      item.variants.push({
-        variant_size: row.variant_size || undefined,
-        variant_color: row.variant_color || undefined,
-        variant_sku: row.variant_sku || undefined,
-        variant_stock_qty: row.variant_stock_qty || undefined,
-      })
       grouped.set(key, item)
     })
 
@@ -114,15 +104,6 @@ export default function ProductsPage() {
         if (Number.isNaN(price) || price <= 0) throw new Error(`Invalid price_tzs for ${group.name}`)
 
         const lowThreshold = parseNumeric(group.low_stock_threshold || '5', 5)
-        const variants = group.variants
-          .filter(v => v.variant_size || v.variant_color || v.variant_sku || v.variant_stock_qty)
-          .map(v => ({
-            size: v.variant_size || undefined,
-            color: v.variant_color || undefined,
-            sku: v.variant_sku || undefined,
-            stock_qty: parseNumeric(v.variant_stock_qty || '0', 0),
-          }))
-
         await createProduct({
           name: group.name,
           category_id: categoryIdFromName,
@@ -130,7 +111,6 @@ export default function ProductsPage() {
           price,
           image_url: group.image_url,
           low_stock_threshold: Number.isNaN(lowThreshold) ? 5 : lowThreshold,
-          variants,
         })
         created += 1
       } catch (e) {
@@ -141,9 +121,6 @@ export default function ProductsPage() {
     await qc.invalidateQueries({ queryKey: ['products'] })
     return { created, failed: errors.length, errors }
   }
-
-  const totalStock = (p: Product) => p.variants.reduce((s, v) => s + v.stock_qty, 0)
-  const isLow = (p: Product) => p.variants.some(v => v.stock_qty <= p.low_stock_threshold)
 
   const columns = [
     {
@@ -160,25 +137,11 @@ export default function ProductsPage() {
     { key: 'price', header: 'Price', render: (p: Product) => fmt(p.price) },
     {
       key: 'stock',
-      header: 'Stock',
+      header: 'Stock Qty',
       render: (p: Product) => (
-        <span className={isLow(p) ? 'text-red-600 font-semibold' : ''}>
-          {totalStock(p)} units
-          {isLow(p) && <Badge label="Low" color="red" />}
+        <span className={p.stock_qty <= p.low_stock_threshold ? 'font-semibold text-red-600' : ''}>
+          {p.stock_qty}
         </span>
-      ),
-    },
-    {
-      key: 'variants',
-      header: 'Variants',
-      render: (p: Product) => (
-        <div className="flex flex-wrap gap-1">
-          {p.variants.map(v => (
-            <span key={v.id} className="text-xs bg-gray-100 rounded px-1.5 py-0.5">
-              {[v.size, v.color].filter(Boolean).join(' / ') || 'Default'} ({v.stock_qty})
-            </span>
-          ))}
-        </div>
       ),
     },
     {

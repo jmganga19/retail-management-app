@@ -1,21 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from ..database import get_db
-from ..models import Product, ProductVariant, User
+from ..models import Product, User
 from ..schemas.product import (
     ProductCreate,
     ProductOut,
     ProductUpdate,
-    VariantCreate,
-    VariantOut,
-    VariantUpdate,
 )
-from ..services.audit_service import create_audit_log
 from ..utils.deps import get_current_user, require_manager_or_admin
-from ..utils.sku import generate_unique_sku
 
 router = APIRouter(prefix="/products", tags=["Products"], dependencies=[Depends(get_current_user)])
 
@@ -24,15 +18,8 @@ router = APIRouter(prefix="/products", tags=["Products"], dependencies=[Depends(
 async def low_stock_products(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Product)
-        .options(selectinload(Product.variants))
         .where(Product.is_active == True)
-        .where(
-            Product.id.in_(
-                select(ProductVariant.product_id).where(
-                    ProductVariant.stock_qty <= Product.low_stock_threshold
-                )
-            )
-        )
+        .where(Product.stock_qty <= Product.low_stock_threshold)
     )
     return result.scalars().unique().all()
 
@@ -46,7 +33,7 @@ async def list_products(
     limit: int = Query(default=50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ):
-    q = select(Product).options(selectinload(Product.variants))
+    q = select(Product)
     if category_id is not None:
         q = q.where(Product.category_id == category_id)
     if name:
@@ -64,40 +51,31 @@ async def create_product(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_manager_or_admin),
 ):
-    data = payload.model_dump(exclude={"variants"}, exclude_none=True)
-    product = Product(**data)
-    db.add(product)
-    await db.flush()
-
-    for v in payload.variants:
-        variant_data = v.model_dump()
-        if not (variant_data.get("sku") or "").strip():
-            variant_data["sku"] = await generate_unique_sku(db)
-        variant = ProductVariant(product_id=product.id, current_selling_price=product.price, **variant_data)
-        db.add(variant)
-
-    if not payload.variants:
-        db.add(
-            ProductVariant(
-                product_id=product.id,
-                current_selling_price=product.price,
-                sku=await generate_unique_sku(db),
-            )
+    normalized_name = payload.name.strip().lower()
+    existing_result = await db.execute(select(Product).where(func.lower(Product.name) == normalized_name))
+    existing = existing_result.scalar_one_or_none()
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Product name '{payload.name}' already exists",
         )
+
+    data = payload.model_dump(exclude_none=True)
+    product = Product(**data)
+    product.current_selling_price = product.price
+    db.add(product)
 
     await db.commit()
     await db.refresh(product)
 
-    result = await db.execute(
-        select(Product).options(selectinload(Product.variants)).where(Product.id == product.id)
-    )
+    result = await db.execute(select(Product).where(Product.id == product.id))
     return result.scalar_one()
 
 
 @router.get("/{product_id}", response_model=ProductOut)
 async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(Product).options(selectinload(Product.variants)).where(Product.id == product_id)
+        select(Product).where(Product.id == product_id)
     )
     product = result.scalar_one_or_none()
     if not product:
@@ -116,13 +94,24 @@ async def update_product(
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    for field, value in payload.model_dump(exclude_none=True).items():
+
+    patch = payload.model_dump(exclude_none=True)
+    if "name" in patch:
+        normalized_name = str(patch["name"]).strip().lower()
+        existing_result = await db.execute(
+            select(Product).where(func.lower(Product.name) == normalized_name, Product.id != product_id)
+        )
+        existing = existing_result.scalar_one_or_none()
+        if existing is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Product name '{patch['name']}' already exists",
+            )
+    for field, value in patch.items():
         setattr(product, field, value)
     await db.commit()
 
-    result = await db.execute(
-        select(Product).options(selectinload(Product.variants)).where(Product.id == product_id)
-    )
+    result = await db.execute(select(Product).where(Product.id == product_id))
     return result.scalar_one()
 
 
@@ -137,86 +126,4 @@ async def delete_product(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     product.is_active = False
-    await db.commit()
-
-
-@router.post("/{product_id}/variants", response_model=VariantOut, status_code=status.HTTP_201_CREATED)
-async def add_variant(
-    product_id: int,
-    payload: VariantCreate,
-    db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_manager_or_admin),
-):
-    result = await db.execute(select(Product).where(Product.id == product_id))
-    product = result.scalar_one_or_none()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-
-    variant_data = payload.model_dump()
-    if not (variant_data.get("sku") or "").strip():
-        variant_data["sku"] = await generate_unique_sku(db)
-
-    variant = ProductVariant(product_id=product_id, current_selling_price=product.price, **variant_data)
-    db.add(variant)
-    await db.commit()
-    await db.refresh(variant)
-    return variant
-
-
-@router.patch("/{product_id}/variants/{variant_id}", response_model=VariantOut)
-async def update_variant(
-    product_id: int,
-    variant_id: int,
-    payload: VariantUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_manager_or_admin),
-):
-    result = await db.execute(
-        select(ProductVariant).where(
-            ProductVariant.id == variant_id, ProductVariant.product_id == product_id
-        )
-    )
-    variant = result.scalar_one_or_none()
-    if not variant:
-        raise HTTPException(status_code=404, detail="Variant not found")
-
-    before_qty = variant.stock_qty
-    changes = payload.model_dump(exclude_none=True)
-    for field, value in changes.items():
-        setattr(variant, field, value)
-
-    if "stock_qty" in changes and changes["stock_qty"] != before_qty:
-        after_qty = variant.stock_qty
-        delta = after_qty - before_qty
-        sign = "+" if delta >= 0 else ""
-        await create_audit_log(
-            db,
-            actor_user_id=current_user.id,
-            action="stock_adjust_manual",
-            target_type="product_variant",
-            target_id=variant.id,
-            description=f"Manual stock adjustment: qty {sign}{delta} (before={before_qty}, after={after_qty})",
-        )
-
-    await db.commit()
-    await db.refresh(variant)
-    return variant
-
-
-@router.delete("/{product_id}/variants/{variant_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_variant(
-    product_id: int,
-    variant_id: int,
-    db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_manager_or_admin),
-):
-    result = await db.execute(
-        select(ProductVariant).where(
-            ProductVariant.id == variant_id, ProductVariant.product_id == product_id
-        )
-    )
-    variant = result.scalar_one_or_none()
-    if not variant:
-        raise HTTPException(status_code=404, detail="Variant not found")
-    await db.delete(variant)
     await db.commit()

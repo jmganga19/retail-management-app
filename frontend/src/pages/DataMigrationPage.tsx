@@ -45,10 +45,6 @@ const defs: Record<MigrationKey, MigrationDef> = {
       category_name: ['category', 'categoryname'],
       description: ['desc'],
       price_tzs: ['price', 'selling_price', 'selling_price_tzs'],
-      variant_size: ['size'],
-      variant_color: ['color'],
-      variant_sku: ['sku'],
-      variant_stock_qty: ['stock_qty', 'qty'],
     },
   },
   customers: {
@@ -73,10 +69,10 @@ const defs: Record<MigrationKey, MigrationDef> = {
       historical_month_optional: ['month', 'sale_month'],
       historical_year_optional: ['year', 'sale_year'],
       customer_id_optional: ['customer_id'],
+      product_id_optional: ['product_id', 'product'],
       discount_tzs: ['discount'],
-      variant_id: ['variant', 'sku_id'],
-      variant_sku_optional: ['variant_sku', 'sku', 'product_sku'],
       product_name_optional: ['product_name', 'item_name', 'name'],
+      category_name_optional: ['category', 'category_name'],
       unit_price_tzs: ['unit_price', 'price', 'selling_price'],
       quantity: ['qty'],
     },
@@ -89,8 +85,7 @@ const defs: Record<MigrationKey, MigrationDef> = {
       order_ref: ['reference', 'order_number', 'order_no'],
       customer_id: ['customer'],
       unit_price_tzs: ['unit_price', 'price'],
-      variant_id: ['variant', 'sku_id'],
-      variant_sku_optional: ['variant_sku', 'sku', 'product_sku'],
+      product_id: ['product_id', 'product'],
       quantity: ['qty'],
     },
   },
@@ -104,8 +99,7 @@ const defs: Record<MigrationKey, MigrationDef> = {
       expected_arrival_date_yyyy_mm_dd: ['expected_arrival_date', 'arrival_date'],
       deposit_amount_tzs: ['deposit_amount', 'deposit'],
       unit_price_tzs: ['unit_price', 'price'],
-      variant_id: ['variant', 'sku_id'],
-      variant_sku_optional: ['variant_sku', 'sku', 'product_sku'],
+      product_id: ['product_id', 'product'],
       quantity: ['qty'],
     },
   },
@@ -115,11 +109,9 @@ const defs: Record<MigrationKey, MigrationDef> = {
     required: ['stock_ref', 'quantity', 'buying_price_tzs', 'selling_price_tzs'],
     aliases: {
       stock_ref: ['reference', 'stock_order_ref'],
+      product_id_optional: ['product_id', 'product'],
       item_name: ['name', 'product_name'],
       category_id_optional: ['category_id', 'category'],
-      variant_sku_optional: ['sku', 'variant_sku'],
-      variant_size_optional: ['size', 'variant_size'],
-      variant_color_optional: ['color', 'variant_color'],
       buying_price_tzs: ['buying_price', 'cost_price'],
       selling_price_tzs: ['selling_price', 'price_tzs'],
       quantity: ['qty'],
@@ -153,6 +145,10 @@ const parseHistoricalSoldAt = (row: Record<string, string>, batchMonth: string):
 const parseBatchCreatedAt = (batchMonth: string): string | undefined => {
   if (!/^\d{4}-\d{2}$/.test(batchMonth)) return undefined
   return `${batchMonth}-01T00:00:00`
+}
+const buildHistoricalSaleRef = (rowNumber: string, batchMonth: string): string => {
+  const monthToken = /^\d{4}-\d{2}$/.test(batchMonth) ? batchMonth.replace('-', '') : 'unknown'
+  return `HIST-${monthToken}-${String(rowNumber).padStart(4, '0')}`
 }
 
 const getApiError = (error: unknown, fallback: string): string => {
@@ -207,23 +203,6 @@ const fetchAllActiveProducts = async () => {
 
   return all
 }
-const downloadCsvFile = (headers: string[], rows: string[][], filename: string) => {
-  const esc = (value: string) => {
-    if (value.includes(',') || value.includes('"') || value.includes('\n')) return '"' + value.replace(/"/g, '""') + '"'
-    return value
-  }
-  const csv = [headers.join(','), ...rows.map(row => row.map(cell => esc(String(cell ?? ''))).join(','))].join('\n')
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
-}
-
 const exportFailedRows = (rows: Array<Record<string, string>>) => {
   if (rows.length === 0) return
   const headers = unique(rows.flatMap(r => Object.keys(r)))
@@ -252,16 +231,16 @@ export default function DataMigrationPage() {
   const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([])
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const [loading, setLoading] = useState(false)
-  const [exportingVariants, setExportingVariants] = useState(false)
   const [salesHistoricalMode, setSalesHistoricalMode] = useState(true)
   const [historicalBatchMonth, setHistoricalBatchMonth] = useState('')
   const [generalBatchMonth, setGeneralBatchMonth] = useState('')
+  const [showAdvancedFields, setShowAdvancedFields] = useState(false)
 
   const targetHeaders = useMemo(() => {
     if (!defs[kind]) return []
     return defs[kind].required.concat(
       ({
-        products: ['description', 'image_url', 'low_stock_threshold', 'variant_size', 'variant_color', 'variant_sku', 'variant_stock_qty'],
+        products: ['description', 'image_url', 'low_stock_threshold'],
         customers: ['phone', 'email'],
         sales: [
           'payment_status_optional',
@@ -271,14 +250,14 @@ export default function DataMigrationPage() {
           'customer_id_optional',
           'discount_tzs',
           'notes',
-          'variant_id',
-          'variant_sku_optional',
+          'product_id_optional',
           'product_name_optional',
+          'category_name_optional',
           'unit_price_tzs',
         ],
-        orders: ['discount_tzs', 'notes', 'variant_id', 'variant_sku_optional'],
-        preorders: ['expected_arrival_date_yyyy_mm_dd', 'deposit_amount_tzs', 'notes', 'variant_id', 'variant_sku_optional'],
-        stock_orders: ['variant_id', 'item_name', 'category_id_optional', 'variant_sku_optional', 'variant_size_optional', 'variant_color_optional', 'notes'],
+        orders: ['discount_tzs', 'notes', 'product_id'],
+        preorders: ['expected_arrival_date_yyyy_mm_dd', 'deposit_amount_tzs', 'notes', 'product_id'],
+        stock_orders: ['product_id_optional', 'item_name', 'category_id_optional', 'notes'],
       } as Record<MigrationKey, string[]>)[kind],
     )
   }, [kind])
@@ -295,6 +274,10 @@ export default function DataMigrationPage() {
   }, [rawRows, targetHeaders, mapping])
 
   const previewRows = useMemo(() => mappedRows.slice(0, 8), [mappedRows])
+  const visibleTargetHeaders = useMemo(
+    () => (showAdvancedFields ? targetHeaders : targetHeaders.filter(h => defs[kind].required.includes(h))),
+    [showAdvancedFields, targetHeaders, kind],
+  )
 
   const onFile = async (file: File) => {
     const text = await file.text()
@@ -308,7 +291,10 @@ export default function DataMigrationPage() {
 
   const runValidation = () => {
     const issues: ValidationIssue[] = []
-    const required = defs[kind].required
+    const required =
+      kind === 'sales' && salesHistoricalMode
+        ? defs[kind].required.filter(field => field !== 'sale_ref' && field !== 'payment_method_cash_bank_mobile_money')
+        : defs[kind].required
     const requiresBatchMonth = kind === 'products' || kind === 'orders' || kind === 'preorders' || kind === 'stock_orders'
     if (requiresBatchMonth && mappedRows.length > 0 && !parseBatchCreatedAt(generalBatchMonth)) {
       issues.push({ rowNumber: 2, message: 'Batch Month/Year is required for this dataset (example: 04/2026)' })
@@ -329,14 +315,13 @@ export default function DataMigrationPage() {
         if (email && !email.includes('@')) issues.push({ rowNumber, message: 'email format looks invalid' })
       }
       if (kind === 'sales') {
-        const variantId = parsePositiveIntLike(row.variant_id)
-        const variantSku = trimToUndefined(row.variant_sku_optional)
+        const productId = parsePositiveIntLike(row.product_id_optional)
         const productName = trimToUndefined(row.product_name_optional)
-        if (!salesHistoricalMode && Number.isNaN(variantId) && !variantSku) {
-          issues.push({ rowNumber, message: 'variant_id or variant_sku_optional is required' })
+        if (!salesHistoricalMode && Number.isNaN(productId) && !productName) {
+          issues.push({ rowNumber, message: 'product_id_optional or product_name_optional is required' })
         }
-        if (salesHistoricalMode && Number.isNaN(variantId) && !variantSku && !productName) {
-          issues.push({ rowNumber, message: 'variant_id/variant_sku_optional/product_name_optional is required' })
+        if (salesHistoricalMode && Number.isNaN(productId) && !productName) {
+          issues.push({ rowNumber, message: 'product_id_optional/product_name_optional is required' })
         }
         if (Number.isNaN(parsePositiveIntLike(row.quantity))) issues.push({ rowNumber, message: 'quantity must be positive integer' })
         if (salesHistoricalMode) {
@@ -362,9 +347,8 @@ export default function DataMigrationPage() {
       }
       if (kind === 'orders' || kind === 'preorders') {
         if (Number.isNaN(parsePositiveIntLike(row.customer_id))) issues.push({ rowNumber, message: 'customer_id must be positive integer' })
-        const variantId = parsePositiveIntLike(row.variant_id)
-        const variantSku = trimToUndefined(row.variant_sku_optional)
-        if (Number.isNaN(variantId) && !variantSku) issues.push({ rowNumber, message: 'variant_id or variant_sku_optional is required' })
+        const productId = parsePositiveIntLike(row.product_id)
+        if (Number.isNaN(productId)) issues.push({ rowNumber, message: 'product_id is required' })
         if (Number.isNaN(parsePositiveIntLike(row.quantity))) issues.push({ rowNumber, message: 'quantity must be positive integer' })
         if (Number.isNaN(parseNumericLike(row.unit_price_tzs))) issues.push({ rowNumber, message: 'unit_price_tzs must be numeric' })
       }
@@ -387,15 +371,20 @@ export default function DataMigrationPage() {
     const errors: string[] = []
     let created = 0
 
-    const needsVariantLookup = kind === 'sales' || kind === 'orders' || kind === 'preorders'
-    const variantBySku = new Map<string, number>()
-    if (needsVariantLookup) {
+    const productByName = new Map<string, number>()
+    const productByNameAndCategory = new Map<string, number>()
+    if (kind === 'sales' || kind === 'orders' || kind === 'preorders' || kind === 'stock_orders') {
       const productsForLookup = await fetchAllActiveProducts()
+      const categories = await getCategories()
+      const categoryById = new Map(categories.map(c => [c.id, c.name]))
       productsForLookup.forEach(p => {
-        p.variants.forEach(v => {
-          const sku = (v.sku ?? '').trim().toLowerCase()
-          if (sku && !variantBySku.has(sku)) variantBySku.set(sku, v.id)
-        })
+        const key = (p.name ?? '').trim().toLowerCase()
+        if (key && !productByName.has(key)) productByName.set(key, p.id)
+        const categoryName = (categoryById.get(p.category_id) ?? '').trim().toLowerCase()
+        if (key && categoryName) {
+          const pairKey = `${key}|${categoryName}`
+          if (!productByNameAndCategory.has(pairKey)) productByNameAndCategory.set(pairKey, p.id)
+        }
       })
     }
 
@@ -444,15 +433,6 @@ export default function DataMigrationPage() {
           const categoryId = categoryMap.get(catName.toLowerCase())
           if (!categoryId) throw new Error(`Category not found: ${catName}`)
 
-          const variants = group
-            .filter(r => trimToUndefined(r.variant_size) || trimToUndefined(r.variant_color) || trimToUndefined(r.variant_sku) || trimToUndefined(r.variant_stock_qty))
-            .map(r => ({
-              size: trimToUndefined(r.variant_size),
-              color: trimToUndefined(r.variant_color),
-              sku: trimToUndefined(r.variant_sku),
-              stock_qty: parseNumericLike(r.variant_stock_qty, 0),
-            }))
-
           await createProduct({
             name,
             category_id: categoryId,
@@ -461,7 +441,6 @@ export default function DataMigrationPage() {
             image_url: trimToUndefined(first.image_url),
             low_stock_threshold: parseNumericLike(first.low_stock_threshold, 5),
             created_at: parseBatchCreatedAt(generalBatchMonth),
-            variants,
           })
           created += 1
         } catch (e) {
@@ -480,7 +459,7 @@ export default function DataMigrationPage() {
     if (kind === 'sales') {
       const groups = new Map<string, Record<string, string>[]>()
       mappedRows.forEach(row => {
-        const ref = trimToUndefined(row.sale_ref)
+        const ref = trimToUndefined(row.sale_ref) ?? (salesHistoricalMode ? buildHistoricalSaleRef(row.__row_number, historicalBatchMonth) : undefined)
         if (!ref) {
           const msg = `Row ${row.__row_number}: sale_ref is required`
           errors.push(msg)
@@ -496,38 +475,46 @@ export default function DataMigrationPage() {
         try {
           const first = list[0]
           const items = list.map((row, idx) => {
-            const parsedVariantId = parsePositiveIntLike(row.variant_id)
-            const sku = (trimToUndefined(row.variant_sku_optional) ?? '').toLowerCase()
-            const resolvedVariantId = Number.isNaN(parsedVariantId) ? (sku ? (variantBySku.get(sku) ?? NaN) : NaN) : parsedVariantId
+            const parsedProductId = parsePositiveIntLike(row.product_id_optional)
+            const productName = trimToUndefined(row.product_name_optional)
+            const categoryName = trimToUndefined(row.category_name_optional)?.toLowerCase()
+            const byName = productName ? productByName.get(productName.toLowerCase()) : undefined
+            const byNameCategory =
+              productName && categoryName
+                ? productByNameAndCategory.get(`${productName.toLowerCase()}|${categoryName}`)
+                : undefined
+            const resolvedProductId = Number.isNaN(parsedProductId)
+              ? (byNameCategory ?? byName ?? NaN)
+              : parsedProductId
             const quantity = parsePositiveIntLike(row.quantity)
 
             if (Number.isNaN(quantity)) throw new Error(`invalid quantity at line ${idx + 1}`)
 
             if (salesHistoricalMode) {
               const unitPrice = parseNumericLike(row.unit_price_tzs)
-              const productName = trimToUndefined(row.product_name_optional)
               if (Number.isNaN(unitPrice) || unitPrice <= 0) throw new Error(`unit_price_tzs must be positive at line ${idx + 1}`)
-              if (Number.isNaN(resolvedVariantId) && !productName && !sku) {
-                throw new Error(`variant_id/variant_sku_optional/product_name_optional required at line ${idx + 1}`)
+              if (Number.isNaN(resolvedProductId) && !productName) {
+                throw new Error(`product_id_optional/product_name_optional required at line ${idx + 1}`)
               }
               return {
-                variant_id: Number.isNaN(resolvedVariantId) ? undefined : resolvedVariantId,
+                product_id: Number.isNaN(resolvedProductId) ? undefined : resolvedProductId,
                 quantity,
                 unit_price: unitPrice,
                 product_name: productName,
-                variant_sku: trimToUndefined(row.variant_sku_optional),
               }
             }
 
-            if (Number.isNaN(resolvedVariantId)) {
-              throw new Error(`invalid variant reference (variant_id or variant_sku_optional) at line ${idx + 1}`)
+            if (Number.isNaN(resolvedProductId)) {
+              throw new Error(`invalid product reference (product_id_optional or product_name_optional) at line ${idx + 1}`)
             }
-            return { variant_id: resolvedVariantId, quantity }
+            return { product_id: resolvedProductId, quantity }
           })
 
           await createSale({
             customer_id: Number.isNaN(parsePositiveIntLike(first.customer_id_optional)) ? undefined : parsePositiveIntLike(first.customer_id_optional),
-            payment_method: normalizePaymentMethod(first.payment_method_cash_bank_mobile_money),
+            payment_method: normalizePaymentMethod(
+              trimToUndefined(first.payment_method_cash_bank_mobile_money) ?? (salesHistoricalMode ? 'bank' : 'cash')
+            ),
             discount: Number.isNaN(parseNumericLike(first.discount_tzs)) ? undefined : parseNumericLike(first.discount_tzs),
             notes: (() => {
               const base = trimToUndefined(first.notes)
@@ -575,13 +562,11 @@ export default function DataMigrationPage() {
           if (Number.isNaN(customerId)) throw new Error('invalid customer_id')
 
           const items = list.map((row, idx) => {
-            const parsedVariantId = parsePositiveIntLike(row.variant_id)
-            const sku = (trimToUndefined(row.variant_sku_optional) ?? '').toLowerCase()
-            const resolvedVariantId = Number.isNaN(parsedVariantId) ? (sku ? (variantBySku.get(sku) ?? NaN) : NaN) : parsedVariantId
+            const resolvedProductId = parsePositiveIntLike(row.product_id)
             const quantity = parsePositiveIntLike(row.quantity)
             const unitPrice = parseNumericLike(row.unit_price_tzs)
-            if (Number.isNaN(resolvedVariantId) || Number.isNaN(quantity) || Number.isNaN(unitPrice) || unitPrice <= 0) throw new Error(`invalid item fields at line ${idx + 1}`)
-            return { variant_id: resolvedVariantId, quantity, unit_price: unitPrice }
+            if (Number.isNaN(resolvedProductId) || Number.isNaN(quantity) || Number.isNaN(unitPrice) || unitPrice <= 0) throw new Error(`invalid item fields at line ${idx + 1}`)
+            return { product_id: resolvedProductId, quantity, unit_price: unitPrice }
           })
 
           await createOrder({
@@ -626,13 +611,11 @@ export default function DataMigrationPage() {
           if (Number.isNaN(customerId)) throw new Error('invalid customer_id')
 
           const items = list.map((row, idx) => {
-            const parsedVariantId = parsePositiveIntLike(row.variant_id)
-            const sku = (trimToUndefined(row.variant_sku_optional) ?? '').toLowerCase()
-            const resolvedVariantId = Number.isNaN(parsedVariantId) ? (sku ? (variantBySku.get(sku) ?? NaN) : NaN) : parsedVariantId
+            const resolvedProductId = parsePositiveIntLike(row.product_id)
             const quantity = parsePositiveIntLike(row.quantity)
             const unitPrice = parseNumericLike(row.unit_price_tzs)
-            if (Number.isNaN(resolvedVariantId) || Number.isNaN(quantity) || Number.isNaN(unitPrice) || unitPrice <= 0) throw new Error(`invalid item fields at line ${idx + 1}`)
-            return { variant_id: resolvedVariantId, quantity, unit_price: unitPrice }
+            if (Number.isNaN(resolvedProductId) || Number.isNaN(quantity) || Number.isNaN(unitPrice) || unitPrice <= 0) throw new Error(`invalid item fields at line ${idx + 1}`)
+            return { product_id: resolvedProductId, quantity, unit_price: unitPrice }
           })
 
           await createPreorder({
@@ -655,12 +638,6 @@ export default function DataMigrationPage() {
       await qc.invalidateQueries({ queryKey: ['preorders'] })
       return { created, failed: errors.length, errors, failedRows: failRows }
     }
-
-    const products = await fetchAllActiveProducts()
-    const variants = products.flatMap(p => p.variants.map(v => ({ id: v.id, sku: (v.sku ?? '').toLowerCase(), name: p.name.toLowerCase() })))
-    const variantBySkuStock = new Map(variants.filter(v => v.sku).map(v => [v.sku, v.id]))
-    const variantByName = new Map<string, number>()
-    variants.forEach(v => { if (!variantByName.has(v.name)) variantByName.set(v.name, v.id) })
 
     const groups = new Map<string, Record<string, string>[]>()
     mappedRows.forEach(row => {
@@ -687,15 +664,10 @@ export default function DataMigrationPage() {
             throw new Error(`invalid quantity/buying_price_tzs/selling_price_tzs at line ${idx + 1}`)
           }
 
-          const sku = (trimToUndefined(row.variant_sku_optional) ?? '').toLowerCase()
           const itemName = (trimToUndefined(row.item_name) ?? '').toLowerCase()
-          let variantId = parsePositiveIntLike(row.variant_id)
-          if (Number.isNaN(variantId)) {
-            variantId = sku ? (variantBySkuStock.get(sku) ?? NaN) : NaN
-            if (Number.isNaN(variantId) && itemName) variantId = variantByName.get(itemName) ?? NaN
-          }
-
-          if (!Number.isNaN(variantId)) return { variant_id: variantId, quantity: qty, buying_price: buying, selling_price: selling }
+          let productId = parsePositiveIntLike(row.product_id_optional)
+          if (Number.isNaN(productId) && itemName) productId = productByName.get(itemName) ?? NaN
+          if (!Number.isNaN(productId)) return { product_id: productId, quantity: qty, buying_price: buying, selling_price: selling }
 
           const categoryId = parsePositiveIntLike(row.category_id_optional)
           if (Number.isNaN(categoryId)) throw new Error(`category_id_optional required for new item at line ${idx + 1}`)
@@ -704,9 +676,6 @@ export default function DataMigrationPage() {
           return {
             item_name: row.item_name,
             category_id: categoryId,
-            variant_size: trimToUndefined(row.variant_size_optional),
-            variant_color: trimToUndefined(row.variant_color_optional),
-            variant_sku: trimToUndefined(row.variant_sku_optional),
             quantity: qty,
             buying_price: buying,
             selling_price: selling,
@@ -729,19 +698,7 @@ export default function DataMigrationPage() {
     return { created, failed: errors.length, errors, failedRows: failRows }
   }
 
-  const exportVariantsCsv = async () => {
-    setExportingVariants(true)
-    try {
-      const products = await fetchAllActiveProducts()
-      const headers = ['product_name', 'sku', 'variant_id']
-      const rows = products.flatMap(product =>
-        (product.variants ?? []).map(variant => [product.name ?? '', variant.sku ?? '', String(variant.id)]),
-      )
-      downloadCsvFile(headers, rows, 'variants_mapping_' + Date.now() + '.csv')
-    } finally {
-      setExportingVariants(false)
-    }
-  }
+  
 
   return (
     <div className="space-y-4">
@@ -765,6 +722,7 @@ export default function DataMigrationPage() {
               setImportResult(null)
               setHistoricalBatchMonth('')
               setGeneralBatchMonth('')
+              setShowAdvancedFields(false)
             }}
             options={Object.values(defs).map(d => ({ value: d.key, label: d.label }))}
           />
@@ -781,15 +739,6 @@ export default function DataMigrationPage() {
             />
           </div>
           <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              loading={exportingVariants}
-              onClick={async () => {
-                await exportVariantsCsv()
-              }}
-            >
-              Export Variants CSV
-            </Button>
             <Button variant="secondary" onClick={() => downloadCsvTemplate(kind)}>
               Download Template
             </Button>
@@ -803,11 +752,24 @@ export default function DataMigrationPage() {
                 setImportResult(null)
                 setHistoricalBatchMonth('')
                 setGeneralBatchMonth('')
+                setShowAdvancedFields(false)
               }}
             >
               Reset
             </Button>
           </div>
+        </div>
+
+        <div>
+          <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-gray-300"
+              checked={showAdvancedFields}
+              onChange={e => setShowAdvancedFields(e.target.checked)}
+            />
+            Show advanced fields (optional columns)
+          </label>
         </div>
 
         {kind === 'sales' && (
@@ -819,7 +781,7 @@ export default function DataMigrationPage() {
                 checked={salesHistoricalMode}
                 onChange={e => setSalesHistoricalMode(e.target.checked)}
               />
-              Historical sales import mode (no stock deduction; supports product_name + unit_price without variant)
+              Historical sales import mode (no stock deduction; supports product_name + unit_price without product_id)
             </label>
             {salesHistoricalMode && (
               <div className="max-w-xs">
@@ -831,6 +793,9 @@ export default function DataMigrationPage() {
                   onChange={e => setHistoricalBatchMonth(e.target.value)}
                 />
                 <p className="mt-1 text-xs text-gray-500">Example: 04/2026. Used when row date is missing.</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  If missing in CSV, <span className="font-mono">sale_ref</span> is auto-generated and payment method defaults to Bank.
+                </p>
               </div>
             )}
           </div>
@@ -863,7 +828,7 @@ export default function DataMigrationPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {targetHeaders.map(target => (
+                  {visibleTargetHeaders.map(target => (
                     <tr key={target} className="border-t border-gray-100">
                       <td className="px-3 py-2 font-mono text-xs">{target}</td>
                       <td className="px-3 py-2">
@@ -951,14 +916,14 @@ export default function DataMigrationPage() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-2 py-1 text-left">#</th>
-                    {targetHeaders.map(h => <th key={h} className="px-2 py-1 text-left font-mono">{h}</th>)}
+                    {visibleTargetHeaders.map(h => <th key={h} className="px-2 py-1 text-left font-mono">{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {previewRows.map(row => (
                     <tr key={row.__row_number} className="border-t border-gray-100">
                       <td className="px-2 py-1">{row.__row_number}</td>
-                      {targetHeaders.map(h => <td key={`${row.__row_number}-${h}`} className="px-2 py-1">{row[h]}</td>)}
+                      {visibleTargetHeaders.map(h => <td key={`${row.__row_number}-${h}`} className="px-2 py-1">{row[h]}</td>)}
                     </tr>
                   ))}
                 </tbody>

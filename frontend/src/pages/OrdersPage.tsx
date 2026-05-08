@@ -45,6 +45,7 @@ export default function OrdersPage() {
   const qc = useQueryClient()
   const { user } = useAuth()
   const canManageOrders = user?.role === 'admin' || user?.role === 'manager'
+  const canCompleteOrders = user?.role === 'admin' || user?.role === 'manager' || user?.role === 'staff'
   const { data: settings } = useSettings()
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
@@ -198,12 +199,12 @@ export default function OrdersPage() {
             <Button size="sm" variant="secondary" loading={printingId === o.id} onClick={() => handlePrint(o.id)}>
               Print
             </Button>
-            {canManageOrders && isDebtOrder(o) && (
+            {canCompleteOrders && isDebtOrder(o) && (
               <Button size="sm" variant="primary" loading={convertToSale.isPending} onClick={() => openConvertModal(o)}>
                 Convert to Sale
               </Button>
             )}
-            {canManageOrders && next && (
+            {canCompleteOrders && next && (
               <Button
                 size="sm"
                 variant="secondary"
@@ -253,6 +254,11 @@ export default function OrdersPage() {
           <Button onClick={() => setModalOpen(true)}>+ New Order</Button>
         </div>
       </div>
+      {user?.role === 'staff' && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+          Staff permissions: you can move order status forward and convert completed debt orders to sales, but you cannot cancel orders.
+        </div>
+      )}
 
       <Table columns={columns} data={pagedOrders} keyExtractor={o => o.id} loading={isLoading} emptyMessage="No orders found." />
       <Pagination currentPage={currentPage} pageSize={PAGE_SIZE} totalItems={visibleOrders.length} onPageChange={setCurrentPage} />

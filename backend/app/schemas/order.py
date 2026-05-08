@@ -4,22 +4,19 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from .product import VariantOut
-
 
 class OrderItemCreate(BaseModel):
-    variant_id: int
+    product_id: int | None = None
     quantity: int = Field(gt=0)
     unit_price: Decimal = Field(gt=0)
 
 
 class OrderItemOut(BaseModel):
     id: int
-    variant_id: int
+    product_id: int
     quantity: int
     unit_price: Decimal
     subtotal: Decimal
-    variant: VariantOut | None = None
 
     model_config = {"from_attributes": True}
 

@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from ..models import Customer, Order, PreOrder, Product, ProductVariant, Sale
+from ..models import Customer, Order, PreOrder, Product, Sale
 from ..utils.deps import get_current_user
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"], dependencies=[Depends(get_current_user)])
@@ -187,14 +187,9 @@ async def dashboard_summary(db: AsyncSession = Depends(get_db)):
     )
     pending_preorders_count = preorders_result.scalar() or 0
 
-    # Low stock: products with any variant at or below threshold
+    # Low stock: products at or below threshold
     low_stock_result = await db.execute(
-        select(func.count(func.distinct(ProductVariant.product_id))).where(
-            ProductVariant.stock_qty
-            <= select(Product.low_stock_threshold)
-            .where(Product.id == ProductVariant.product_id)
-            .scalar_subquery()
-        )
+        select(func.count(Product.id)).where(Product.stock_qty <= Product.low_stock_threshold)
     )
     low_stock_count = low_stock_result.scalar() or 0
 

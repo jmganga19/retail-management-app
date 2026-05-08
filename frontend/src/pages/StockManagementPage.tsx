@@ -11,7 +11,7 @@ import TemplateButton from '../components/ui/TemplateButton'
 import { useCategories } from '../hooks/useCategories'
 import { useProducts } from '../hooks/useProducts'
 import { useCreateStockOrder, useReceiveStockOrder, useStockOrders, useUpdateStockOrder } from '../hooks/useStockOrders'
-import type { Product, StockOrder, StockOrderListItem } from '../types'
+import type { StockOrder, StockOrderListItem } from '../types'
 import { parseNumericLike, parsePositiveIntLike, trimToUndefined } from '../utils/importParsers'
 
 const PAGE_SIZE = 10
@@ -20,12 +20,9 @@ type RowMode = 'existing' | 'new'
 
 interface EntryRow {
   mode: RowMode
-  variant_id: number
+  product_id: number
   item_name: string
   category_id: number
-  variant_size: string
-  variant_color: string
-  variant_sku: string
   quantity: number
   buying_price: number
   selling_price: number
@@ -33,12 +30,9 @@ interface EntryRow {
 
 const emptyRow = (): EntryRow => ({
   mode: 'existing',
-  variant_id: 0,
+  product_id: 0,
   item_name: '',
   category_id: 0,
-  variant_size: '',
-  variant_color: '',
-  variant_sku: '',
   quantity: 1,
   buying_price: 0,
   selling_price: 0,
@@ -51,12 +45,6 @@ const rowTotals = (row: EntryRow) => {
   const purchase = row.buying_price * row.quantity
   const selling = row.selling_price * row.quantity
   return { purchase, selling, profit: selling - purchase }
-}
-
-const variantDisplay = (product: Product, variant: Product['variants'][number]) => {
-  const bits = [variant.sku, variant.size, variant.color].filter(Boolean)
-  const suffix = bits.length ? bits.join(' / ') : 'Default'
-  return `${product.name} - ${suffix}`
 }
 
 const statusTabs = [
@@ -74,12 +62,9 @@ const toEntryRows = (order: StockOrder): EntryRow[] => {
   if (!order.items.length) return [emptyRow()]
   return order.items.map(item => ({
     mode: item.variant_id ? 'existing' : 'new',
-    variant_id: item.variant_id ?? 0,
+    product_id: 0,
     item_name: item.item_name ?? '',
     category_id: item.category_id ?? 0,
-    variant_size: item.variant_size ?? '',
-    variant_color: item.variant_color ?? '',
-    variant_sku: item.variant_sku ?? '',
     quantity: Number(item.quantity || 0),
     buying_price: Number(item.buying_price || 0),
     selling_price: Number(item.selling_price || 0),
@@ -93,6 +78,8 @@ export default function StockManagementPage() {
   const [open, setOpen] = useState(false)
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null)
   const [editingLoadId, setEditingLoadId] = useState<number | null>(null)
+  const [viewOrder, setViewOrder] = useState<StockOrder | null>(null)
+  const [viewLoadingId, setViewLoadingId] = useState<number | null>(null)
   const [notes, setNotes] = useState('')
   const [rows, setRows] = useState<EntryRow[]>([emptyRow()])
   const [error, setError] = useState('')
@@ -121,30 +108,16 @@ export default function StockManagementPage() {
     return stockOrders.slice(start, start + PAGE_SIZE)
   }, [stockOrders, currentPage])
 
-  const variants = useMemo(
-    () =>
-      products.flatMap(p =>
-        p.variants.map(v => ({
-          id: v.id,
-          sku: (v.sku || '').toLowerCase(),
-          product_name: p.name,
-          label: variantDisplay(p, v),
-        })),
-      ),
-    [products],
-  )
-
-  const variantOptions = variants.map(v => ({ value: v.id, label: v.label }))
+  const productOptions = products.map(p => ({ value: p.id, label: p.name }))
   const categoryOptions = categories.map(c => ({ value: c.id, label: c.name }))
-  const variantBySku = useMemo(() => new Map(variants.filter(v => v.sku).map(v => [v.sku, v.id])), [variants])
-  const variantByName = useMemo(() => {
+  const productByName = useMemo(() => {
     const m = new Map<string, number>()
-    variants.forEach(v => {
-      const key = v.product_name.toLowerCase()
-      if (!m.has(key)) m.set(key, v.id)
+    products.forEach(p => {
+      const key = p.name.toLowerCase()
+      if (!m.has(key)) m.set(key, p.id)
     })
     return m
-  }, [variants])
+  }, [products])
 
   const setRow = (idx: number, patch: Partial<EntryRow>) => {
     setRows(prev => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
@@ -187,6 +160,18 @@ export default function StockManagementPage() {
     }
   }
 
+  const handleView = async (id: number) => {
+    setViewLoadingId(id)
+    try {
+      const order = await getStockOrder(id)
+      setViewOrder(order)
+    } catch (e) {
+      alert(getErrorMessage(e, 'Failed to load stock order details.'))
+    } finally {
+      setViewLoadingId(null)
+    }
+  }
+
   const handleSave = async () => {
     setError('')
     const payloadItems = rows
@@ -194,7 +179,7 @@ export default function StockManagementPage() {
       .map(r => {
         if (r.mode === 'existing') {
           return {
-            variant_id: r.variant_id || undefined,
+            product_id: r.product_id || undefined,
             quantity: r.quantity,
             buying_price: r.buying_price,
             selling_price: r.selling_price,
@@ -203,9 +188,6 @@ export default function StockManagementPage() {
         return {
           item_name: r.item_name.trim() || undefined,
           category_id: r.category_id || undefined,
-          variant_size: trimToUndefined(r.variant_size),
-          variant_color: trimToUndefined(r.variant_color),
-          variant_sku: trimToUndefined(r.variant_sku),
           quantity: r.quantity,
           buying_price: r.buying_price,
           selling_price: r.selling_price,
@@ -250,13 +232,11 @@ export default function StockManagementPage() {
       try {
         const first = group[0]
         const items = group.map((row, idx) => {
-          const variantIdParsed = parsePositiveIntLike(row.variant_id)
-          const sku = (row.variant_sku_optional || '').trim().toLowerCase()
+          const productIdParsed = parsePositiveIntLike(row.product_id_optional)
           const itemName = (row.item_name || '').trim().toLowerCase()
 
-          let variant_id = Number.isNaN(variantIdParsed) ? 0 : variantIdParsed
-          if (!variant_id && sku) variant_id = variantBySku.get(sku) ?? 0
-          if (!variant_id && itemName) variant_id = variantByName.get(itemName) ?? 0
+          let product_id = Number.isNaN(productIdParsed) ? 0 : productIdParsed
+          if (!product_id && itemName) product_id = productByName.get(itemName) ?? 0
 
           const quantity = parsePositiveIntLike(row.quantity)
           const buying = parseNumericLike(row.buying_price_tzs)
@@ -265,8 +245,8 @@ export default function StockManagementPage() {
             throw new Error(`stock_ref ${ref}: invalid quantity/buying/selling at line ${idx + 1}`)
           }
 
-          if (variant_id) {
-            return { variant_id, quantity, buying_price: buying, selling_price: selling }
+          if (product_id) {
+            return { product_id, quantity, buying_price: buying, selling_price: selling }
           }
 
           const categoryId = parsePositiveIntLike(row.category_id_optional)
@@ -280,9 +260,6 @@ export default function StockManagementPage() {
           return {
             item_name: row.item_name,
             category_id: categoryId,
-            variant_size: trimToUndefined(row.variant_size_optional),
-            variant_color: trimToUndefined(row.variant_color_optional),
-            variant_sku: trimToUndefined(row.variant_sku_optional),
             quantity,
             buying_price: buying,
             selling_price: selling,
@@ -313,6 +290,16 @@ export default function StockManagementPage() {
       header: '',
       render: (r: StockOrderListItem) => (
         <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            loading={viewLoadingId === r.id}
+            onClick={() => {
+              void handleView(r.id)
+            }}
+          >
+            View
+          </Button>
           {r.status === 'pending' && (
             <>
               <Button
@@ -403,7 +390,7 @@ export default function StockManagementPage() {
                       <Select
                         label="Item Type"
                         value={r.mode}
-                        onChange={e => setRow(idx, { mode: e.target.value as RowMode, variant_id: 0 })}
+                        onChange={e => setRow(idx, { mode: e.target.value as RowMode, product_id: 0 })}
                         options={[
                           { value: 'existing', label: 'Existing' },
                           { value: 'new', label: 'New Product' },
@@ -413,10 +400,10 @@ export default function StockManagementPage() {
                     {r.mode === 'existing' ? (
                       <div className="col-span-5">
                         <Select
-                          label="Existing Variant"
-                          value={r.variant_id || ''}
-                          onChange={e => setRow(idx, { variant_id: Number(e.target.value) })}
-                          options={variantOptions}
+                          label="Existing Product"
+                          value={r.product_id || ''}
+                          onChange={e => setRow(idx, { product_id: Number(e.target.value) })}
+                          options={productOptions}
                           placeholder="Select item"
                         />
                       </div>
@@ -447,20 +434,6 @@ export default function StockManagementPage() {
                     </div>
                   </div>
 
-                  {r.mode === 'new' && (
-                    <div className="grid grid-cols-12 gap-2">
-                      <div className="col-span-4">
-                        <Input label="Variant SKU (optional)" value={r.variant_sku} onChange={e => setRow(idx, { variant_sku: e.target.value })} />
-                      </div>
-                      <div className="col-span-4">
-                        <Input label="Variant Size (optional)" value={r.variant_size} onChange={e => setRow(idx, { variant_size: e.target.value })} />
-                      </div>
-                      <div className="col-span-4">
-                        <Input label="Variant Color (optional)" value={r.variant_color} onChange={e => setRow(idx, { variant_color: e.target.value })} />
-                      </div>
-                    </div>
-                  )}
-
                   <div className="flex items-center justify-between text-xs text-gray-600">
                     <div>
                       Purchase: {fmt(totals.purchase)} | Selling: {fmt(totals.selling)} | <span className="font-semibold text-emerald-700">Profit: {fmt(totals.profit)}</span>
@@ -474,6 +447,54 @@ export default function StockManagementPage() {
             })}
           </div>
         </div>
+      </Modal>
+
+      <Modal
+        open={!!viewOrder}
+        onClose={() => setViewOrder(null)}
+        title={viewOrder ? `Stock Order ${viewOrder.order_number}` : 'Stock Order Details'}
+        size="2xl"
+        footer={<Button variant="secondary" onClick={() => setViewOrder(null)}>Close</Button>}
+      >
+        {viewOrder ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div><span className="text-gray-500">Status:</span> {viewOrder.status}</div>
+              <div><span className="text-gray-500">Created:</span> {new Date(viewOrder.created_at).toLocaleString()}</div>
+              <div><span className="text-gray-500">Total Purchase:</span> {fmt(viewOrder.total_purchase)}</div>
+              <div><span className="text-gray-500">Total Selling:</span> {fmt(viewOrder.total_potential_sales)}</div>
+              <div><span className="text-gray-500">Total Profit:</span> {fmt(viewOrder.total_profit)}</div>
+            </div>
+            <div className="overflow-x-auto rounded-lg border border-gray-100">
+              <table className="min-w-full divide-y divide-gray-100 text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Item</th>
+                    <th className="px-3 py-2 text-right">Qty</th>
+                    <th className="px-3 py-2 text-right">Buying</th>
+                    <th className="px-3 py-2 text-right">Selling</th>
+                    <th className="px-3 py-2 text-right">Purchase</th>
+                    <th className="px-3 py-2 text-right">Profit</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 bg-white">
+                  {viewOrder.items.map(item => (
+                    <tr key={item.id}>
+                      <td className="px-3 py-2">{item.item_name}</td>
+                      <td className="px-3 py-2 text-right">{item.quantity}</td>
+                      <td className="px-3 py-2 text-right">{fmt(item.buying_price)}</td>
+                      <td className="px-3 py-2 text-right">{fmt(item.selling_price)}</td>
+                      <td className="px-3 py-2 text-right">{fmt(item.purchase_amount)}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-emerald-700">{fmt(item.profit_amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">No details available.</p>
+        )}
       </Modal>
     </div>
   )

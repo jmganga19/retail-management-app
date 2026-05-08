@@ -4,34 +4,6 @@ from decimal import Decimal
 from pydantic import BaseModel, Field
 
 
-class VariantBase(BaseModel):
-    size: str | None = None
-    color: str | None = None
-    sku: str | None = None
-    stock_qty: int = Field(default=0, ge=0)
-
-
-class VariantCreate(VariantBase):
-    pass
-
-
-class VariantUpdate(BaseModel):
-    size: str | None = None
-    color: str | None = None
-    sku: str | None = None
-    stock_qty: int | None = Field(default=None, ge=0)
-
-
-class VariantOut(VariantBase):
-    id: int
-    product_id: int
-    last_buying_price: Decimal | None = None
-    average_buying_price: Decimal | None = None
-    current_selling_price: Decimal | None = None
-
-    model_config = {"from_attributes": True}
-
-
 class ProductBase(BaseModel):
     name: str
     category_id: int
@@ -43,7 +15,6 @@ class ProductBase(BaseModel):
 
 class ProductCreate(ProductBase):
     created_at: datetime | None = None
-    variants: list[VariantCreate] = []
 
 
 class ProductUpdate(BaseModel):
@@ -58,9 +29,9 @@ class ProductUpdate(BaseModel):
 
 class ProductOut(ProductBase):
     id: int
+    stock_qty: int = 0
     is_active: bool
     created_at: datetime
-    variants: list[VariantOut] = []
 
     model_config = {"from_attributes": True}
 

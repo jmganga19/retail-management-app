@@ -2,24 +2,32 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field
-
-from .product import VariantOut
+from pydantic import BaseModel, Field, model_validator
 
 
 class PreOrderItemCreate(BaseModel):
-    variant_id: int
+    product_id: int | None = None
+    product_name: str | None = None
+    category_id: int | None = None
     quantity: int = Field(gt=0)
     unit_price: Decimal = Field(gt=0)
+
+    @model_validator(mode="after")
+    def validate_product_source(self):
+        if self.product_id is None:
+            if not (self.product_name and self.product_name.strip()):
+                raise ValueError("product_name is required when product_id is not provided")
+            if self.category_id is None:
+                raise ValueError("category_id is required when product_id is not provided")
+        return self
 
 
 class PreOrderItemOut(BaseModel):
     id: int
-    variant_id: int
+    product_id: int
     quantity: int
     unit_price: Decimal
     subtotal: Decimal
-    variant: VariantOut | None = None
 
     model_config = {"from_attributes": True}
 

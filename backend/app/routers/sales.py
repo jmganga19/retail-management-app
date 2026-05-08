@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..database import get_db
-from ..models import ProductVariant, Sale, SaleItem, User
+from ..models import Product, Sale, SaleItem, User
 from ..schemas.sale import SaleCreate, SaleListOut, SaleOut
 from ..services.sale_service import create_sale, void_sale
 from ..utils.deps import get_current_user, require_manager_or_admin
@@ -28,7 +28,7 @@ async def list_sales(
         select(Sale)
         .options(
             selectinload(Sale.customer),
-            selectinload(Sale.items).selectinload(SaleItem.variant).selectinload(ProductVariant.product),
+            selectinload(Sale.items).selectinload(SaleItem.product),
         )
     )
 
@@ -47,9 +47,9 @@ async def list_sales(
     for sale in sales:
         product_names = sorted(
             {
-                item.variant.product.name
+                item.product.name
                 for item in sale.items
-                if item.variant is not None and getattr(item.variant, "product", None) is not None
+                if item.product is not None
             }
             | {
                 item.product_name_snapshot
@@ -97,7 +97,7 @@ async def new_sale(
 async def get_sale(sale_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Sale)
-        .options(selectinload(Sale.items).selectinload(SaleItem.variant))
+        .options(selectinload(Sale.items).selectinload(SaleItem.product))
         .where(Sale.id == sale_id)
     )
     sale = result.scalar_one_or_none()
@@ -114,3 +114,4 @@ async def void_sale_endpoint(
 ):
     """Void a sale and restore stock for non-historical sales."""
     await void_sale(db, sale_id, actor_user_id=current_user.id)
+

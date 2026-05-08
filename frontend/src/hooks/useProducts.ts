@@ -1,16 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  addVariant,
   createProduct,
   deleteProduct,
-  deleteVariant,
   getLowStockProducts,
   getProduct,
   getProducts,
   updateProduct,
-  updateVariant,
 } from '../api/products'
-import type { ProductCreate, VariantCreate, VariantUpdate } from '../types'
+import type { ProductCreate } from '../types'
 
 interface ProductFilters {
   category_id?: number
@@ -49,41 +46,5 @@ export const useDeleteProduct = () => {
   return useMutation({
     mutationFn: deleteProduct,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
-  })
-}
-
-export const useAddVariant = () => {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ productId, data }: { productId: number; data: VariantCreate }) =>
-      addVariant(productId, data),
-    onSuccess: (_data, { productId }) => {
-      qc.invalidateQueries({ queryKey: ['products', productId] })
-      qc.invalidateQueries({ queryKey: ['products'] })
-    },
-  })
-}
-
-export const useUpdateVariant = () => {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ productId, variantId, data }: { productId: number; variantId: number; data: VariantUpdate }) =>
-      updateVariant(productId, variantId, data),
-    onSuccess: (_data, { productId }) => {
-      qc.invalidateQueries({ queryKey: ['products', productId] })
-      qc.invalidateQueries({ queryKey: ['products'] })
-    },
-  })
-}
-
-export const useDeleteVariant = () => {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ productId, variantId }: { productId: number; variantId: number }) =>
-      deleteVariant(productId, variantId),
-    onSuccess: (_data, { productId }) => {
-      qc.invalidateQueries({ queryKey: ['products', productId] })
-      qc.invalidateQueries({ queryKey: ['products'] })
-    },
   })
 }

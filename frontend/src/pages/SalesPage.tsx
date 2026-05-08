@@ -7,13 +7,14 @@ import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import ImportCsvButton, { type ImportOutcome } from '../components/ui/ImportCsvButton'
 import Input from '../components/ui/Input'
+import Modal from '../components/ui/Modal'
 import Pagination from '../components/ui/Pagination'
 import Select from '../components/ui/Select'
 import Table from '../components/ui/Table'
 import TemplateButton from '../components/ui/TemplateButton'
 import { useSales, useVoidSale } from '../hooks/useSales'
 import { useSettings } from '../hooks/useSettings'
-import type { SaleListItem } from '../types'
+import type { Sale, SaleListItem } from '../types'
 import { normalizePaymentMethod, parseNumericLike, parsePositiveIntLike, trimToUndefined } from '../utils/importParsers'
 import { printSaleReceipt } from '../utils/print'
 import { paymentMethodLabel } from '../utils/payment'
@@ -38,6 +39,9 @@ export default function SalesPage() {
   const [search, setSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [printingId, setPrintingId] = useState<number | null>(null)
+  const [detailSale, setDetailSale] = useState<Sale | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [detailLoading, setDetailLoading] = useState(false)
 
   const canManageSales = user?.role === 'admin' || user?.role === 'manager'
   const { data: settings } = useSettings()
@@ -127,6 +131,17 @@ export default function SalesPage() {
     }
   }
 
+  const handleOpenDetails = async (saleId: number) => {
+    try {
+      setDetailLoading(true)
+      const sale = await getSale(saleId)
+      setDetailSale(sale)
+      setDetailOpen(true)
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
   const columns = [
     { key: 'number', header: 'Sale #', render: (s: SaleListItem) => <span className="font-mono text-xs">{s.sale_number}</span> },
     { key: 'customer', header: 'Customer', render: (s: SaleListItem) => s.customer_name ?? 'Walk-in' },
@@ -146,6 +161,9 @@ export default function SalesPage() {
       header: '',
       render: (s: SaleListItem) => (
         <div className="flex gap-2">
+          <Button size="sm" variant="secondary" loading={detailLoading} onClick={() => handleOpenDetails(s.id)}>
+            Details
+          </Button>
           <Button size="sm" variant="secondary" loading={printingId === s.id} onClick={() => handlePrint(s.id)}>
             Print
           </Button>
@@ -198,6 +216,59 @@ export default function SalesPage() {
 
       <Table columns={columns} data={pagedSales} keyExtractor={s => s.id} loading={isLoading} emptyMessage="No sales found." />
       <Pagination currentPage={currentPage} pageSize={PAGE_SIZE} totalItems={sales.length} onPageChange={setCurrentPage} />
+
+      <Modal
+        open={detailOpen}
+        onClose={() => setDetailOpen(false)}
+        title={detailSale ? `Sale Details - ${detailSale.sale_number}` : 'Sale Details'}
+        size="2xl"
+        footer={<Button variant="secondary" onClick={() => setDetailOpen(false)}>Close</Button>}
+      >
+        {detailSale ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div><span className="text-gray-500">Payment:</span> {paymentMethodLabel(detailSale.payment_method)}</div>
+              <div><span className="text-gray-500">Date:</span> {new Date(detailSale.sold_at).toLocaleString()}</div>
+              <div><span className="text-gray-500">Subtotal:</span> {fmt(detailSale.subtotal)}</div>
+              <div><span className="text-gray-500">Discount:</span> -{fmt(detailSale.discount)}</div>
+              <div className="font-semibold"><span className="text-gray-500 font-normal">Total:</span> {fmt(detailSale.total)}</div>
+            </div>
+            <div className="overflow-x-auto rounded-lg border border-gray-100">
+              <table className="min-w-full divide-y divide-gray-100 text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Item</th>
+                    <th className="px-3 py-2 text-right">Qty</th>
+                    <th className="px-3 py-2 text-right">Unit</th>
+                    <th className="px-3 py-2 text-right">Gross</th>
+                    <th className="px-3 py-2 text-right">Discount</th>
+                    <th className="px-3 py-2 text-right">Net</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 bg-white">
+                  {detailSale.items.map(item => {
+                    const gross = Number(item.unit_price) * Number(item.quantity)
+                    const net = Number(item.subtotal)
+                    const lineDiscount = Math.max(0, gross - net)
+                    return (
+                      <tr key={item.id}>
+                        <td className="px-3 py-2">{item.product_name_snapshot || `Product #${item.product_id ?? '-'}`}</td>
+                        <td className="px-3 py-2 text-right">{item.quantity}</td>
+                        <td className="px-3 py-2 text-right">{fmt(item.unit_price)}</td>
+                        <td className="px-3 py-2 text-right">{fmt(gross)}</td>
+                        <td className="px-3 py-2 text-right">-{fmt(lineDiscount)}</td>
+                        <td className="px-3 py-2 text-right font-semibold">{fmt(net)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">No sale details loaded.</p>
+        )}
+      </Modal>
     </div>
   )
 }

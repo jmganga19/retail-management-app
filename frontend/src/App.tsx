@@ -6,6 +6,7 @@ import CategoriesPage from './pages/CategoriesPage'
 import CustomersPage from './pages/CustomersPage'
 import DashboardPage from './pages/DashboardPage'
 import DataMigrationPage from './pages/DataMigrationPage'
+import DebtManagementPage from './pages/DebtManagementPage'
 import LoginPage from './pages/LoginPage'
 import NewSalePage from './pages/NewSalePage'
 import OrdersPage from './pages/OrdersPage'
@@ -63,6 +64,7 @@ export default function App() {
               }
             />
             <Route path="orders" element={<OrdersPage />} />
+            <Route path="debt-management" element={<DebtManagementPage />} />
             <Route path="preorders" element={<PreordersPage />} />
             <Route
               path="customers"

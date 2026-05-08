@@ -5,23 +5,20 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class StockOrderItemCreate(BaseModel):
-    variant_id: int | None = None
+    product_id: int | None = None
     item_name: str | None = None
     category_id: int | None = None
-    variant_size: str | None = None
-    variant_color: str | None = None
-    variant_sku: str | None = None
     quantity: int = Field(gt=0)
     buying_price: Decimal = Field(gt=0)
     selling_price: Decimal = Field(gt=0)
 
     @model_validator(mode="after")
     def validate_source(self):
-        if self.variant_id is None:
+        if self.product_id is None:
             if not (self.item_name and self.item_name.strip()):
-                raise ValueError("item_name is required when variant_id is not provided")
+                raise ValueError("item_name is required when product_id is not provided")
             if self.category_id is None:
-                raise ValueError("category_id is required when variant_id is not provided")
+                raise ValueError("category_id is required when product_id is not provided")
         return self
 
 
@@ -42,13 +39,9 @@ class StockOrderReceivePayload(BaseModel):
 
 class StockOrderItemOut(BaseModel):
     id: int
-    variant_id: int | None
+    product_id: int | None
     category_id: int | None
     item_name: str
-    variant_size: str | None
-    variant_color: str | None
-    variant_sku: str | None
-    variant_label: str
     quantity: int
     buying_price: Decimal
     selling_price: Decimal

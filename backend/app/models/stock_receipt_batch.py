@@ -13,7 +13,7 @@ class StockReceiptBatch(Base, TimestampMixin):
     __tablename__ = "stock_receipt_batches"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    variant_id: Mapped[int] = mapped_column(ForeignKey("product_variants.id"), nullable=False)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False)
     stock_order_id: Mapped[int | None] = mapped_column(ForeignKey("stock_orders.id", ondelete="SET NULL"), nullable=True)
     stock_order_item_id: Mapped[int | None] = mapped_column(ForeignKey("stock_order_items.id", ondelete="SET NULL"), nullable=True)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -23,4 +23,4 @@ class StockReceiptBatch(Base, TimestampMixin):
     margin_percent: Mapped[Decimal | None] = mapped_column(Numeric(7, 2), nullable=True)
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    variant: Mapped[ProductVariant] = relationship("ProductVariant")
+    product: Mapped[Product] = relationship("Product")

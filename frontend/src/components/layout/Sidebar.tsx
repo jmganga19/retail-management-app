@@ -83,6 +83,15 @@ const navItems: NavItem[] = [
     ),
   },
   {
+    to: '/debt-management',
+    label: 'Debt Management',
+    icon: (
+      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a5 5 0 00-10 0v2m-2 0h14l-1 10a2 2 0 01-2 2H8a2 2 0 01-2-2L5 9z" />
+      </svg>
+    ),
+  },
+  {
     to: '/preorders',
     label: 'Pre-orders',
     icon: (
