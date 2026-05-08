@@ -250,8 +250,15 @@ export interface RecentTransaction {
 }
 
 export interface DashboardSummary {
+  report_month: string
   today_sales_total: string
   today_sales_count: number
+  month_live_sales_total: string
+  month_live_sales_count: number
+  month_historical_sales_total: string
+  month_historical_sales_count: number
+  month_combined_sales_total: string
+  month_combined_sales_count: number
   total_orders_count: number
   pending_preorders_count: number
   low_stock_count: number

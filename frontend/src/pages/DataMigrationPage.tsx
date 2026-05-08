@@ -801,6 +801,18 @@ export default function DataMigrationPage() {
                   try {
                     const result = await executeImport()
                     setImportResult(result)
+                    if (result.failed === 0) {
+                      window.alert(`Import finished successfully. Records created: ${result.created}.`)
+                      setSourceHeaders([])
+                      setRawRows([])
+                      setMapping({})
+                      setValidationIssues([])
+                      setImportResult(null)
+                    } else if (result.created > 0) {
+                      window.alert(
+                        `Import partially finished. Created: ${result.created}, Failed: ${result.failed}. Review errors below or download failed rows CSV.`
+                      )
+                    }
                   } finally {
                     setLoading(false)
                   }

@@ -21,11 +21,10 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
           title="Today's Sales"
-          value={data ? fmt(data.today_sales_total) : '—'}
+          value={data ? fmt(data.today_sales_total) : '-'}
           subtitle={data ? `${data.today_sales_count} transaction(s)` : undefined}
           colorClass="bg-green-100 text-green-600"
           icon={
@@ -35,8 +34,41 @@ export default function DashboardPage() {
           }
         />
         <StatCard
+          title={data ? `Month Live Sales (${data.report_month})` : 'Month Live Sales'}
+          value={data ? fmt(data.month_live_sales_total) : '-'}
+          subtitle={data ? `${data.month_live_sales_count} transaction(s)` : undefined}
+          colorClass="bg-emerald-100 text-emerald-600"
+          icon={
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          }
+        />
+        <StatCard
+          title={data ? `Month Historical (${data.report_month})` : 'Month Historical'}
+          value={data ? fmt(data.month_historical_sales_total) : '-'}
+          subtitle={data ? `${data.month_historical_sales_count} record(s)` : undefined}
+          colorClass="bg-gray-100 text-gray-600"
+          icon={
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          }
+        />
+        <StatCard
+          title={data ? `Month Combined (${data.report_month})` : 'Month Combined'}
+          value={data ? fmt(data.month_combined_sales_total) : '-'}
+          subtitle={data ? `${data.month_combined_sales_count} total record(s)` : undefined}
+          colorClass="bg-indigo-100 text-indigo-600"
+          icon={
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 11V5a1 1 0 112 0v6h6a1 1 0 110 2h-6v6a1 1 0 11-2 0v-6H5a1 1 0 110-2h6z" />
+            </svg>
+          }
+        />
+        <StatCard
           title="Total Orders"
-          value={data?.total_orders_count ?? '—'}
+          value={data?.total_orders_count ?? '-'}
           colorClass="bg-blue-100 text-blue-600"
           icon={
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -46,7 +78,7 @@ export default function DashboardPage() {
         />
         <StatCard
           title="Pending Pre-orders"
-          value={data?.pending_preorders_count ?? '—'}
+          value={data?.pending_preorders_count ?? '-'}
           colorClass="bg-yellow-100 text-yellow-600"
           icon={
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -56,7 +88,7 @@ export default function DashboardPage() {
         />
         <StatCard
           title="Low Stock Items"
-          value={data?.low_stock_count ?? '—'}
+          value={data?.low_stock_count ?? '-'}
           colorClass="bg-red-100 text-red-600"
           icon={
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -66,18 +98,16 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Recent Transactions */}
       <div>
-        <h2 className="text-base font-semibold text-gray-900 mb-3">Recent Transactions</h2>
+        <h2 className="text-base font-semibold text-gray-900 mb-3">Recent Transactions (Live Sales)</h2>
         <Table
           columns={recentColumns}
           data={data?.recent_transactions ?? []}
           keyExtractor={r => r.id}
           loading={isLoading}
-          emptyMessage="No transactions yet today."
+          emptyMessage="No live transactions yet."
         />
       </div>
     </div>
   )
 }
-

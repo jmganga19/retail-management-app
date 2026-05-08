@@ -25,8 +25,15 @@ class RecentTransaction(BaseModel):
 
 
 class DashboardSummary(BaseModel):
+    report_month: str
     today_sales_total: Decimal
     today_sales_count: int
+    month_live_sales_total: Decimal
+    month_live_sales_count: int
+    month_historical_sales_total: Decimal
+    month_historical_sales_count: int
+    month_combined_sales_total: Decimal
+    month_combined_sales_count: int
     total_orders_count: int
     pending_preorders_count: int
     low_stock_count: int
@@ -36,6 +43,11 @@ class DashboardSummary(BaseModel):
 @router.get("/summary", response_model=DashboardSummary)
 async def dashboard_summary(db: AsyncSession = Depends(get_db)):
     today = date.today()
+    month_start = date(today.year, today.month, 1)
+    if today.month == 12:
+        month_end = date(today.year + 1, 1, 1)
+    else:
+        month_end = date(today.year, today.month + 1, 1)
 
     # Today's sales total and count
     sales_result = await db.execute(
@@ -50,6 +62,37 @@ async def dashboard_summary(db: AsyncSession = Depends(get_db)):
     sales_row = sales_result.one()
     today_sales_total = Decimal(str(sales_row.total))
     today_sales_count = sales_row.count
+
+    month_live_result = await db.execute(
+        select(
+            func.coalesce(func.sum(Sale.total), 0).label("total"),
+            func.count(Sale.id).label("count"),
+        ).where(
+            Sale.sold_at >= month_start,
+            Sale.sold_at < month_end,
+            Sale.is_historical.is_(False),
+        )
+    )
+    month_live_row = month_live_result.one()
+    month_live_sales_total = Decimal(str(month_live_row.total))
+    month_live_sales_count = month_live_row.count
+
+    month_historical_result = await db.execute(
+        select(
+            func.coalesce(func.sum(Sale.total), 0).label("total"),
+            func.count(Sale.id).label("count"),
+        ).where(
+            Sale.sold_at >= month_start,
+            Sale.sold_at < month_end,
+            Sale.is_historical.is_(True),
+        )
+    )
+    month_historical_row = month_historical_result.one()
+    month_historical_sales_total = Decimal(str(month_historical_row.total))
+    month_historical_sales_count = month_historical_row.count
+
+    month_combined_sales_total = month_live_sales_total + month_historical_sales_total
+    month_combined_sales_count = month_live_sales_count + month_historical_sales_count
 
     # Total orders count (all statuses)
     orders_result = await db.execute(select(func.count(Order.id)))
@@ -91,8 +134,15 @@ async def dashboard_summary(db: AsyncSession = Depends(get_db)):
     recent_transactions = [RecentTransaction(**dict(row)) for row in recent_rows]
 
     return DashboardSummary(
+        report_month=month_start.strftime("%Y-%m"),
         today_sales_total=today_sales_total,
         today_sales_count=today_sales_count,
+        month_live_sales_total=month_live_sales_total,
+        month_live_sales_count=month_live_sales_count,
+        month_historical_sales_total=month_historical_sales_total,
+        month_historical_sales_count=month_historical_sales_count,
+        month_combined_sales_total=month_combined_sales_total,
+        month_combined_sales_count=month_combined_sales_count,
         total_orders_count=total_orders_count,
         pending_preorders_count=pending_preorders_count,
         low_stock_count=low_stock_count,
