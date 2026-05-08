@@ -42,7 +42,10 @@ async def dashboard_summary(db: AsyncSession = Depends(get_db)):
         select(
             func.coalesce(func.sum(Sale.total), 0).label("total"),
             func.count(Sale.id).label("count"),
-        ).where(func.date(Sale.sold_at) == today)
+        ).where(
+            func.date(Sale.sold_at) == today,
+            Sale.is_historical.is_(False),
+        )
     )
     sales_row = sales_result.one()
     today_sales_total = Decimal(str(sales_row.total))
@@ -80,6 +83,7 @@ async def dashboard_summary(db: AsyncSession = Depends(get_db)):
             Sale.sold_at,
         )
         .outerjoin(Customer, Sale.customer_id == Customer.id)
+        .where(Sale.is_historical.is_(False))
         .order_by(Sale.sold_at.desc())
         .limit(10)
     )

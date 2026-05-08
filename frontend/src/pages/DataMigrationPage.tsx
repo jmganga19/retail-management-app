@@ -68,6 +68,7 @@ const defs: Record<MigrationKey, MigrationDef> = {
     aliases: {
       sale_ref: ['reference', 'sale_number', 'sale_no'],
       payment_method_cash_card_mobile_money: ['payment_method', 'payment'],
+      payment_status_optional: ['payment_status', 'status'],
       customer_id_optional: ['customer_id'],
       discount_tzs: ['discount'],
       variant_id: ['variant', 'sku_id'],
@@ -232,7 +233,7 @@ export default function DataMigrationPage() {
       ({
         products: ['description', 'image_url', 'low_stock_threshold', 'variant_size', 'variant_color', 'variant_sku', 'variant_stock_qty'],
         customers: ['phone', 'email'],
-        sales: ['customer_id_optional', 'discount_tzs', 'notes', 'variant_id', 'variant_sku_optional', 'product_name_optional', 'unit_price_tzs'],
+        sales: ['payment_status_optional', 'customer_id_optional', 'discount_tzs', 'notes', 'variant_id', 'variant_sku_optional', 'product_name_optional', 'unit_price_tzs'],
         orders: ['discount_tzs', 'notes', 'variant_id', 'variant_sku_optional'],
         preorders: ['expected_arrival_date_yyyy_mm_dd', 'deposit_amount_tzs', 'notes', 'variant_id', 'variant_sku_optional'],
         stock_orders: ['variant_id', 'item_name', 'category_id_optional', 'variant_sku_optional', 'variant_size_optional', 'variant_color_optional', 'notes'],
@@ -465,7 +466,12 @@ export default function DataMigrationPage() {
             customer_id: Number.isNaN(parsePositiveIntLike(first.customer_id_optional)) ? undefined : parsePositiveIntLike(first.customer_id_optional),
             payment_method: normalizePaymentMethod(first.payment_method_cash_card_mobile_money),
             discount: Number.isNaN(parseNumericLike(first.discount_tzs)) ? undefined : parseNumericLike(first.discount_tzs),
-            notes: trimToUndefined(first.notes),
+            notes: (() => {
+              const base = trimToUndefined(first.notes)
+              const paymentStatus = trimToUndefined(first.payment_status_optional)
+              if (!paymentStatus) return base
+              return base ? `${base} | Payment status: ${paymentStatus}` : `Payment status: ${paymentStatus}`
+            })(),
             is_historical: salesHistoricalMode,
             items,
           })
