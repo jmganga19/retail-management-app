@@ -47,14 +47,18 @@ async def create_preorder(db: AsyncSession, payload: PreOrderCreate) -> PreOrder
 
     preorder_number = await generate_number(db, PreOrder, "preorder_number", "PRE")
 
-    preorder = PreOrder(
-        preorder_number=preorder_number,
-        customer_id=payload.customer_id,
-        expected_arrival_date=payload.expected_arrival_date,
-        deposit_amount=deposit_amount,
-        total_amount=total_amount,
-        notes=payload.notes,
-    )
+    preorder_data = {
+        "preorder_number": preorder_number,
+        "customer_id": payload.customer_id,
+        "expected_arrival_date": payload.expected_arrival_date,
+        "deposit_amount": deposit_amount,
+        "total_amount": total_amount,
+        "notes": payload.notes,
+    }
+    if payload.created_at is not None:
+        preorder_data["created_at"] = payload.created_at
+
+    preorder = PreOrder(**preorder_data)
     db.add(preorder)
     await db.flush()
 

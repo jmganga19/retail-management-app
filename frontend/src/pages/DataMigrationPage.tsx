@@ -64,11 +64,14 @@ const defs: Record<MigrationKey, MigrationDef> = {
   sales: {
     key: 'sales',
     label: 'Sales',
-    required: ['sale_ref', 'payment_method_cash_card_mobile_money', 'quantity'],
+    required: ['sale_ref', 'payment_method_cash_bank_mobile_money', 'quantity'],
     aliases: {
       sale_ref: ['reference', 'sale_number', 'sale_no'],
-      payment_method_cash_card_mobile_money: ['payment_method', 'payment'],
+      payment_method_cash_bank_mobile_money: ['payment_method', 'payment', 'payment_method_cash_card_mobile_money'],
       payment_status_optional: ['payment_status', 'status'],
+      historical_sold_at_optional: ['sold_at', 'sale_date', 'date'],
+      historical_month_optional: ['month', 'sale_month'],
+      historical_year_optional: ['year', 'sale_year'],
       customer_id_optional: ['customer_id'],
       discount_tzs: ['discount'],
       variant_id: ['variant', 'sku_id'],
@@ -126,6 +129,31 @@ const defs: Record<MigrationKey, MigrationDef> = {
 
 const normalize = (v: string) => v.replace(/^\uFEFF/, '').trim().toLowerCase()
 const unique = <T,>(values: T[]) => Array.from(new Set(values))
+const parseHistoricalSoldAt = (row: Record<string, string>, batchMonth: string): string | undefined => {
+  const explicitDate = trimToUndefined(row.historical_sold_at_optional)
+  if (explicitDate) {
+    const d = new Date(explicitDate)
+    if (Number.isNaN(d.getTime())) return undefined
+    return explicitDate
+  }
+
+  const year = parsePositiveIntLike(row.historical_year_optional)
+  const month = parsePositiveIntLike(row.historical_month_optional)
+  if (!Number.isNaN(year) && !Number.isNaN(month) && month >= 1 && month <= 12) {
+    const yyyy = String(year).padStart(4, '0')
+    const mm = String(month).padStart(2, '0')
+    return `${yyyy}-${mm}-01`
+  }
+  if (/^\d{4}-\d{2}$/.test(batchMonth)) {
+    return `${batchMonth}-01`
+  }
+  return undefined
+}
+
+const parseBatchCreatedAt = (batchMonth: string): string | undefined => {
+  if (!/^\d{4}-\d{2}$/.test(batchMonth)) return undefined
+  return `${batchMonth}-01T00:00:00`
+}
 
 const getApiError = (error: unknown, fallback: string): string => {
   const maybe = error as { response?: { data?: { detail?: unknown } }; message?: string }
@@ -226,6 +254,8 @@ export default function DataMigrationPage() {
   const [loading, setLoading] = useState(false)
   const [exportingVariants, setExportingVariants] = useState(false)
   const [salesHistoricalMode, setSalesHistoricalMode] = useState(true)
+  const [historicalBatchMonth, setHistoricalBatchMonth] = useState('')
+  const [generalBatchMonth, setGeneralBatchMonth] = useState('')
 
   const targetHeaders = useMemo(() => {
     if (!defs[kind]) return []
@@ -233,7 +263,19 @@ export default function DataMigrationPage() {
       ({
         products: ['description', 'image_url', 'low_stock_threshold', 'variant_size', 'variant_color', 'variant_sku', 'variant_stock_qty'],
         customers: ['phone', 'email'],
-        sales: ['payment_status_optional', 'customer_id_optional', 'discount_tzs', 'notes', 'variant_id', 'variant_sku_optional', 'product_name_optional', 'unit_price_tzs'],
+        sales: [
+          'payment_status_optional',
+          'historical_sold_at_optional',
+          'historical_month_optional',
+          'historical_year_optional',
+          'customer_id_optional',
+          'discount_tzs',
+          'notes',
+          'variant_id',
+          'variant_sku_optional',
+          'product_name_optional',
+          'unit_price_tzs',
+        ],
         orders: ['discount_tzs', 'notes', 'variant_id', 'variant_sku_optional'],
         preorders: ['expected_arrival_date_yyyy_mm_dd', 'deposit_amount_tzs', 'notes', 'variant_id', 'variant_sku_optional'],
         stock_orders: ['variant_id', 'item_name', 'category_id_optional', 'variant_sku_optional', 'variant_size_optional', 'variant_color_optional', 'notes'],
@@ -267,6 +309,10 @@ export default function DataMigrationPage() {
   const runValidation = () => {
     const issues: ValidationIssue[] = []
     const required = defs[kind].required
+    const requiresBatchMonth = kind === 'products' || kind === 'orders' || kind === 'preorders' || kind === 'stock_orders'
+    if (requiresBatchMonth && mappedRows.length > 0 && !parseBatchCreatedAt(generalBatchMonth)) {
+      issues.push({ rowNumber: 2, message: 'Batch Month/Year is required for this dataset (example: 04/2026)' })
+    }
 
     mappedRows.forEach(row => {
       const rowNumber = Number(row.__row_number)
@@ -296,6 +342,22 @@ export default function DataMigrationPage() {
         if (salesHistoricalMode) {
           const unitPrice = parseNumericLike(row.unit_price_tzs)
           if (Number.isNaN(unitPrice) || unitPrice <= 0) issues.push({ rowNumber, message: 'unit_price_tzs must be positive number in Historical mode' })
+          const hasDate = !!trimToUndefined(row.historical_sold_at_optional)
+          const hasMonth = !Number.isNaN(parsePositiveIntLike(row.historical_month_optional))
+          const hasYear = !Number.isNaN(parsePositiveIntLike(row.historical_year_optional))
+          if (hasDate && !parseHistoricalSoldAt(row, historicalBatchMonth)) {
+            issues.push({ rowNumber, message: 'historical_sold_at_optional must be a valid date (YYYY-MM-DD recommended)' })
+          }
+          if (hasMonth || hasYear) {
+            const month = parsePositiveIntLike(row.historical_month_optional)
+            const year = parsePositiveIntLike(row.historical_year_optional)
+            if (Number.isNaN(month) || month < 1 || month > 12 || Number.isNaN(year)) {
+              issues.push({ rowNumber, message: 'historical_month_optional/historical_year_optional must be valid and provided together' })
+            }
+          }
+          if (!parseHistoricalSoldAt(row, historicalBatchMonth)) {
+            issues.push({ rowNumber, message: 'provide row date/month-year or select Batch Month/Year before import' })
+          }
         }
       }
       if (kind === 'orders' || kind === 'preorders') {
@@ -398,6 +460,7 @@ export default function DataMigrationPage() {
             price,
             image_url: trimToUndefined(first.image_url),
             low_stock_threshold: parseNumericLike(first.low_stock_threshold, 5),
+            created_at: parseBatchCreatedAt(generalBatchMonth),
             variants,
           })
           created += 1
@@ -464,7 +527,7 @@ export default function DataMigrationPage() {
 
           await createSale({
             customer_id: Number.isNaN(parsePositiveIntLike(first.customer_id_optional)) ? undefined : parsePositiveIntLike(first.customer_id_optional),
-            payment_method: normalizePaymentMethod(first.payment_method_cash_card_mobile_money),
+            payment_method: normalizePaymentMethod(first.payment_method_cash_bank_mobile_money),
             discount: Number.isNaN(parseNumericLike(first.discount_tzs)) ? undefined : parseNumericLike(first.discount_tzs),
             notes: (() => {
               const base = trimToUndefined(first.notes)
@@ -473,6 +536,7 @@ export default function DataMigrationPage() {
               return base ? `${base} | Payment status: ${paymentStatus}` : `Payment status: ${paymentStatus}`
             })(),
             is_historical: salesHistoricalMode,
+            sold_at: salesHistoricalMode ? parseHistoricalSoldAt(first, historicalBatchMonth) : undefined,
             items,
           })
           created += 1
@@ -524,6 +588,7 @@ export default function DataMigrationPage() {
             customer_id: customerId,
             discount: Number.isNaN(parseNumericLike(first.discount_tzs)) ? undefined : parseNumericLike(first.discount_tzs),
             notes: trimToUndefined(first.notes),
+            created_at: parseBatchCreatedAt(generalBatchMonth),
             items,
           })
           created += 1
@@ -575,6 +640,7 @@ export default function DataMigrationPage() {
             expected_arrival_date: trimToUndefined(first.expected_arrival_date_yyyy_mm_dd),
             deposit_amount: Number.isNaN(parseNumericLike(first.deposit_amount_tzs)) ? undefined : parseNumericLike(first.deposit_amount_tzs),
             notes: trimToUndefined(first.notes),
+            created_at: parseBatchCreatedAt(generalBatchMonth),
             items,
           })
           created += 1
@@ -647,7 +713,7 @@ export default function DataMigrationPage() {
           }
         })
 
-        await createStockOrder({ notes: trimToUndefined(first.notes), items })
+        await createStockOrder({ notes: trimToUndefined(first.notes), created_at: parseBatchCreatedAt(generalBatchMonth), items })
         created += 1
       } catch (e) {
         group.forEach(r => {
@@ -697,6 +763,8 @@ export default function DataMigrationPage() {
               setMapping({})
               setValidationIssues([])
               setImportResult(null)
+              setHistoricalBatchMonth('')
+              setGeneralBatchMonth('')
             }}
             options={Object.values(defs).map(d => ({ value: d.key, label: d.label }))}
           />
@@ -733,6 +801,8 @@ export default function DataMigrationPage() {
                 setMapping({})
                 setValidationIssues([])
                 setImportResult(null)
+                setHistoricalBatchMonth('')
+                setGeneralBatchMonth('')
               }}
             >
               Reset
@@ -741,15 +811,42 @@ export default function DataMigrationPage() {
         </div>
 
         {kind === 'sales' && (
-          <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+          <div className="space-y-2">
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-gray-300"
+                checked={salesHistoricalMode}
+                onChange={e => setSalesHistoricalMode(e.target.checked)}
+              />
+              Historical sales import mode (no stock deduction; supports product_name + unit_price without variant)
+            </label>
+            {salesHistoricalMode && (
+              <div className="max-w-xs">
+                <label className="text-sm font-medium text-gray-700">Batch Month/Year for Historical Import</label>
+                <input
+                  type="month"
+                  className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  value={historicalBatchMonth}
+                  onChange={e => setHistoricalBatchMonth(e.target.value)}
+                />
+                <p className="mt-1 text-xs text-gray-500">Example: 04/2026. Used when row date is missing.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {(kind === 'products' || kind === 'orders' || kind === 'preorders' || kind === 'stock_orders') && (
+          <div className="max-w-xs">
+            <label className="text-sm font-medium text-gray-700">Batch Month/Year</label>
             <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-gray-300"
-              checked={salesHistoricalMode}
-              onChange={e => setSalesHistoricalMode(e.target.checked)}
+              type="month"
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              value={generalBatchMonth}
+              onChange={e => setGeneralBatchMonth(e.target.value)}
             />
-            Historical sales import mode (no stock deduction; supports product_name + unit_price without variant)
-          </label>
+            <p className="mt-1 text-xs text-gray-500">Optional. If set, created records are stamped to this month (e.g. 04/2026).</p>
+          </div>
         )}
 
         {rawRows.length > 0 && (

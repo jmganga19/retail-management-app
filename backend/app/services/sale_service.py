@@ -134,15 +134,21 @@ async def create_sale(db: AsyncSession, payload: SaleCreate, actor_user_id: int 
 
     sale_number = await generate_number(db, Sale, "sale_number", "SAL")
 
+    sale_kwargs = {
+        "sale_number": sale_number,
+        "customer_id": payload.customer_id,
+        "payment_method": payload.payment_method,
+        "subtotal": gross_subtotal,
+        "discount": discount,
+        "total": total,
+        "notes": payload.notes,
+        "is_historical": payload.is_historical,
+    }
+    if payload.is_historical and payload.sold_at is not None:
+        sale_kwargs["sold_at"] = payload.sold_at
+
     sale = Sale(
-        sale_number=sale_number,
-        customer_id=payload.customer_id,
-        payment_method=payload.payment_method,
-        subtotal=gross_subtotal,
-        discount=discount,
-        total=total,
-        notes=payload.notes,
-        is_historical=payload.is_historical,
+        **sale_kwargs,
     )
     db.add(sale)
     await db.flush()

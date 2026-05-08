@@ -31,6 +31,7 @@ class OrderCreate(BaseModel):
     customer_id: int
     discount: Decimal = Field(default=Decimal("0"), ge=0)
     notes: str | None = None
+    created_at: datetime | None = None
     items: list[OrderItemCreate] = Field(min_length=1)
 
 

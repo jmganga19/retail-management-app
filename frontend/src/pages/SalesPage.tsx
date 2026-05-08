@@ -16,6 +16,7 @@ import { useSettings } from '../hooks/useSettings'
 import type { SaleListItem } from '../types'
 import { normalizePaymentMethod, parseNumericLike, parsePositiveIntLike, trimToUndefined } from '../utils/importParsers'
 import { printSaleReceipt } from '../utils/print'
+import { paymentMethodLabel } from '../utils/payment'
 
 const PAGE_SIZE = 10
 
@@ -82,7 +83,9 @@ export default function SalesPage() {
     for (const [ref, list] of groups) {
       try {
         const first = list[0]
-        const payment = normalizePaymentMethod(first.payment_method_cash_card_mobile_money)
+        const payment = normalizePaymentMethod(
+          first.payment_method_cash_bank_mobile_money ?? first.payment_method_cash_card_mobile_money
+        )
         const items = list.map((row, idx) => {
           const variantId = parsePositiveIntLike(row.variant_id)
           const quantity = parsePositiveIntLike(row.quantity)
@@ -133,7 +136,7 @@ export default function SalesPage() {
       key: 'method',
       header: 'Payment',
       render: (s: SaleListItem) => (
-        <Badge label={s.payment_method.replace('_', ' ')} color={paymentColor[s.payment_method] ?? 'gray'} />
+        <Badge label={paymentMethodLabel(s.payment_method)} color={paymentColor[s.payment_method] ?? 'gray'} />
       ),
     },
     { key: 'total', header: 'Total', render: (s: SaleListItem) => <span className="font-semibold">{fmt(s.total)}</span> },
@@ -178,7 +181,7 @@ export default function SalesPage() {
             onChange={e => setMethod(e.target.value)}
             options={[
               { value: 'cash', label: 'Cash' },
-              { value: 'card', label: 'Card' },
+              { value: 'card', label: 'Bank' },
               { value: 'mobile_money', label: 'Mobile Money' },
             ]}
             placeholder="All methods"
@@ -198,6 +201,7 @@ export default function SalesPage() {
     </div>
   )
 }
+
 
 
 

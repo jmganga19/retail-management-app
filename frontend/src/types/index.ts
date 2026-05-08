@@ -40,6 +40,7 @@ export interface ProductCreate {
   price: number
   image_url?: string
   low_stock_threshold?: number
+  created_at?: string
   variants: VariantCreate[]
 }
 
@@ -124,6 +125,7 @@ export interface SaleCreate {
   discount?: number
   notes?: string
   is_historical?: boolean
+  sold_at?: string
   items: SaleItemCreate[]
 }
 
@@ -176,6 +178,7 @@ export interface OrderCreate {
   customer_id: number
   discount?: number
   notes?: string
+  created_at?: string
   items: OrderItemCreate[]
 }
 
@@ -236,6 +239,7 @@ export interface PreOrderCreate {
   expected_arrival_date?: string
   deposit_amount?: number
   notes?: string
+  created_at?: string
   items: PreOrderItemCreate[]
 }
 
@@ -263,6 +267,21 @@ export interface DashboardSummary {
   pending_preorders_count: number
   low_stock_count: number
   recent_transactions: RecentTransaction[]
+  monthly_sales_trend: Array<{
+    month: string
+    live_total: string
+    historical_total: string
+    combined_total: string
+  }>
+  daily_live_sales_current_month: Array<{
+    day: number
+    total: string
+  }>
+  payment_method_mix_current_month: Array<{
+    payment_method: string
+    total: string
+    count: number
+  }>
 }
 // ---- Stock Orders (Stock Management) ----
 export interface StockOrderItemCreate {
@@ -322,6 +341,7 @@ export interface StockOrderListItem {
 
 export interface StockOrderCreate {
   notes?: string
+  created_at?: string
   items: StockOrderItemCreate[]
 }
 

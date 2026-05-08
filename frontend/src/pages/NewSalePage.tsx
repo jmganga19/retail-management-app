@@ -27,7 +27,7 @@ export default function NewSalePage() {
   const [selectedProductId, setSelectedProductId] = useState('')
   const [selectedVariantId, setSelectedVariantId] = useState('')
   const [qty, setQty] = useState(1)
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mobile_money'>('cash')
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mobile_money'>('card')
   const [customerId, setCustomerId] = useState('')
   const [discount, setDiscount] = useState(0)
   const [notes, setNotes] = useState('')
@@ -160,7 +160,7 @@ export default function NewSalePage() {
           onChange={e => setPaymentMethod(e.target.value as typeof paymentMethod)}
           options={[
             { value: 'cash', label: 'Cash' },
-            { value: 'card', label: 'Card' },
+            { value: 'card', label: 'Bank' },
             { value: 'mobile_money', label: 'Mobile Money' },
           ]}
         />

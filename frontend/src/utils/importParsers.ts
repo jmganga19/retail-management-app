@@ -20,7 +20,7 @@ export const trimToUndefined = (value: string | undefined): string | undefined =
 
 export const normalizePaymentMethod = (value: string | undefined): 'cash' | 'card' | 'mobile_money' => {
   const normalized = (value ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_')
-  if (normalized === 'card') return 'card'
+  if (normalized === 'card' || normalized === 'bank') return 'card'
   if (normalized === 'mobile_money') return 'mobile_money'
   return 'cash'
 }

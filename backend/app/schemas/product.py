@@ -42,6 +42,7 @@ class ProductBase(BaseModel):
 
 
 class ProductCreate(ProductBase):
+    created_at: datetime | None = None
     variants: list[VariantCreate] = []
 
 

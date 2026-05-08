@@ -34,6 +34,7 @@ class SaleCreate(BaseModel):
     discount: Decimal = Field(default=Decimal("0"), ge=0)
     notes: str | None = None
     is_historical: bool = False
+    sold_at: datetime | None = None
     items: list[SaleItemCreate] = Field(min_length=1)
 
 

@@ -8,6 +8,7 @@ import type { OrderListItem, PreOrderListItem } from '../types'
 import Input from '../components/ui/Input'
 import StatCard from '../components/ui/StatCard'
 import Table from '../components/ui/Table'
+import { paymentMethodLabel } from '../utils/payment'
 
 const todayString = () => new Date().toISOString().slice(0, 10)
 const firstDayOfMonthString = () => {
@@ -82,7 +83,7 @@ export default function ReportsPage() {
     salesQuery.isLoading || ordersQuery.isLoading || preordersQuery.isLoading || customersQuery.isLoading
 
   const paymentColumns = [
-    { key: 'method', header: 'Payment Method', render: (r: PaymentRow) => r.method.replace('_', ' ') },
+    { key: 'method', header: 'Payment Method', render: (r: PaymentRow) => paymentMethodLabel(r.method) },
     { key: 'count', header: 'Sales Count', render: (r: PaymentRow) => r.count },
     { key: 'total', header: 'Total Amount', render: (r: PaymentRow) => fmtCurrency(r.total), className: 'font-semibold' },
   ]
@@ -229,4 +230,5 @@ export default function ReportsPage() {
     </div>
   )
 }
+
 

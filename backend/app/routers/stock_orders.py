@@ -221,16 +221,20 @@ async def create_stock_order(
 ):
     item_dicts, total_purchase, total_potential_sales, total_profit = await _resolve_payload_items(db, payload.items)
 
-    stock_order = StockOrder(
-        order_number=_order_number(),
-        notes=payload.notes,
-        created_by_user_id=current_user.id,
-        status="pending",
-        received_at=None,
-        total_purchase=total_purchase,
-        total_potential_sales=total_potential_sales,
-        total_profit=total_profit,
-    )
+    stock_order_data = {
+        "order_number": _order_number(),
+        "notes": payload.notes,
+        "created_by_user_id": current_user.id,
+        "status": "pending",
+        "received_at": None,
+        "total_purchase": total_purchase,
+        "total_potential_sales": total_potential_sales,
+        "total_profit": total_profit,
+    }
+    if payload.created_at is not None:
+        stock_order_data["created_at"] = payload.created_at
+
+    stock_order = StockOrder(**stock_order_data)
     db.add(stock_order)
     await db.flush()
 

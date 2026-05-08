@@ -64,7 +64,7 @@ async def create_product(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_manager_or_admin),
 ):
-    data = payload.model_dump(exclude={"variants"})
+    data = payload.model_dump(exclude={"variants"}, exclude_none=True)
     product = Product(**data)
     db.add(product)
     await db.flush()

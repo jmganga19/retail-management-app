@@ -27,6 +27,7 @@ class StockOrderItemCreate(BaseModel):
 
 class StockOrderCreate(BaseModel):
     notes: str | None = None
+    created_at: datetime | None = None
     items: list[StockOrderItemCreate] = Field(min_length=1)
 
 

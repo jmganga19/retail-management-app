@@ -30,7 +30,7 @@ const templates: Record<TemplateKey, TemplateDef> = {
     headers: [
       'sale_ref',
       'customer_id_optional',
-      'payment_method_cash_card_mobile_money',
+      'payment_method_cash_bank_mobile_money',
       'discount_tzs',
       'notes',
       'variant_id',

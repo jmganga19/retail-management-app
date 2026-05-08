@@ -52,7 +52,7 @@ export default function OrdersPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [printingId, setPrintingId] = useState<number | null>(null)
   const [convertTarget, setConvertTarget] = useState<OrderListItem | null>(null)
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mobile_money'>('cash')
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mobile_money'>('card')
   const [convertNotes, setConvertNotes] = useState('')
   const [convertError, setConvertError] = useState('')
 
@@ -144,7 +144,7 @@ export default function OrdersPage() {
 
   const openConvertModal = (order: OrderListItem) => {
     setConvertTarget(order)
-    setPaymentMethod('cash')
+    setPaymentMethod('card')
     setConvertNotes('')
     setConvertError('')
   }
@@ -282,7 +282,7 @@ export default function OrdersPage() {
             onChange={e => setPaymentMethod(e.target.value as 'cash' | 'card' | 'mobile_money')}
             options={[
               { value: 'cash', label: 'Cash' },
-              { value: 'card', label: 'Card' },
+              { value: 'card', label: 'Bank' },
               { value: 'mobile_money', label: 'Mobile Money' },
             ]}
           />

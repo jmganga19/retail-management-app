@@ -1,4 +1,5 @@
 import type { Order, PreOrder, Sale } from '../types'
+import { paymentMethodLabel } from './payment'
 
 const fmtMoney = (n: string | number) =>
   Number(n).toLocaleString('en-TZ', { style: 'currency', currency: 'TZS', minimumFractionDigits: 2 })
@@ -87,7 +88,7 @@ export function printSaleReceipt(sale: Sale, options?: PrintOptions) {
     <div class="meta">
       <div><strong>Receipt #:</strong> ${esc(sale.sale_number)}</div>
       <div><strong>Date:</strong> ${esc(fmtDateTime(sale.sold_at))}</div>
-      <div><strong>Payment:</strong> ${esc(sale.payment_method.replace('_', ' '))}</div>
+      <div><strong>Payment:</strong> ${esc(paymentMethodLabel(sale.payment_method))}</div>
       <div><strong>Customer:</strong> ${esc(resolveCustomerName(options))}</div>
     </div>
     <table>
@@ -176,4 +177,5 @@ export function printPreorderInvoice(preorder: PreOrder, options?: PrintOptions)
     </div>`,
   )
 }
+
 

@@ -46,14 +46,18 @@ async def create_order(db: AsyncSession, payload: OrderCreate) -> Order:
 
     order_number = await generate_number(db, Order, "order_number", "ORD")
 
-    order = Order(
-        order_number=order_number,
-        customer_id=payload.customer_id,
-        subtotal=gross_subtotal,
-        discount=discount,
-        total=total,
-        notes=payload.notes,
-    )
+    order_data = {
+        "order_number": order_number,
+        "customer_id": payload.customer_id,
+        "subtotal": gross_subtotal,
+        "discount": discount,
+        "total": total,
+        "notes": payload.notes,
+    }
+    if payload.created_at is not None:
+        order_data["created_at"] = payload.created_at
+
+    order = Order(**order_data)
     db.add(order)
     await db.flush()
 

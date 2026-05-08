@@ -38,6 +38,9 @@ class DashboardSummary(BaseModel):
     pending_preorders_count: int
     low_stock_count: int
     recent_transactions: list[RecentTransaction]
+    monthly_sales_trend: list[dict]
+    daily_live_sales_current_month: list[dict]
+    payment_method_mix_current_month: list[dict]
 
 
 @router.get("/summary", response_model=DashboardSummary)
@@ -94,6 +97,86 @@ async def dashboard_summary(db: AsyncSession = Depends(get_db)):
     month_combined_sales_total = month_live_sales_total + month_historical_sales_total
     month_combined_sales_count = month_live_sales_count + month_historical_sales_count
 
+    monthly_sales_trend: list[dict] = []
+    trend_month_start = month_start
+    for _ in range(5):
+        if trend_month_start.month == 1:
+            trend_month_start = date(trend_month_start.year - 1, 12, 1)
+        else:
+            trend_month_start = date(trend_month_start.year, trend_month_start.month - 1, 1)
+    cursor = trend_month_start
+    for _ in range(6):
+        if cursor.month == 12:
+            cursor_end = date(cursor.year + 1, 1, 1)
+        else:
+            cursor_end = date(cursor.year, cursor.month + 1, 1)
+
+        trend_live_result = await db.execute(
+            select(func.coalesce(func.sum(Sale.total), 0)).where(
+                Sale.sold_at >= cursor,
+                Sale.sold_at < cursor_end,
+                Sale.is_historical.is_(False),
+            )
+        )
+        trend_hist_result = await db.execute(
+            select(func.coalesce(func.sum(Sale.total), 0)).where(
+                Sale.sold_at >= cursor,
+                Sale.sold_at < cursor_end,
+                Sale.is_historical.is_(True),
+            )
+        )
+        live_total = Decimal(str(trend_live_result.scalar() or 0))
+        hist_total = Decimal(str(trend_hist_result.scalar() or 0))
+        monthly_sales_trend.append(
+            {
+                "month": cursor.strftime("%Y-%m"),
+                "live_total": live_total,
+                "historical_total": hist_total,
+                "combined_total": live_total + hist_total,
+            }
+        )
+        cursor = cursor_end
+
+    days_in_month = (month_end - month_start).days
+    daily_live_sales_current_month: list[dict] = []
+    for day in range(1, days_in_month + 1):
+        day_start = date(month_start.year, month_start.month, day)
+        if day == days_in_month:
+            day_end = month_end
+        else:
+            day_end = date(month_start.year, month_start.month, day + 1)
+        day_total_result = await db.execute(
+            select(func.coalesce(func.sum(Sale.total), 0)).where(
+                Sale.sold_at >= day_start,
+                Sale.sold_at < day_end,
+                Sale.is_historical.is_(False),
+            )
+        )
+        day_total = Decimal(str(day_total_result.scalar() or 0))
+        daily_live_sales_current_month.append({"day": day, "total": day_total})
+
+    payment_method_mix_current_month: list[dict] = []
+    for method in ("cash", "card", "mobile_money"):
+        method_result = await db.execute(
+            select(
+                func.coalesce(func.sum(Sale.total), 0).label("total"),
+                func.count(Sale.id).label("count"),
+            ).where(
+                Sale.sold_at >= month_start,
+                Sale.sold_at < month_end,
+                Sale.is_historical.is_(False),
+                Sale.payment_method == method,
+            )
+        )
+        method_row = method_result.one()
+        payment_method_mix_current_month.append(
+            {
+                "payment_method": method,
+                "total": Decimal(str(method_row.total)),
+                "count": method_row.count,
+            }
+        )
+
     # Total orders count (all statuses)
     orders_result = await db.execute(select(func.count(Order.id)))
     total_orders_count = orders_result.scalar() or 0
@@ -147,4 +230,7 @@ async def dashboard_summary(db: AsyncSession = Depends(get_db)):
         pending_preorders_count=pending_preorders_count,
         low_stock_count=low_stock_count,
         recent_transactions=recent_transactions,
+        monthly_sales_trend=monthly_sales_trend,
+        daily_live_sales_current_month=daily_live_sales_current_month,
+        payment_method_mix_current_month=payment_method_mix_current_month,
     )

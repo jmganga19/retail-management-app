@@ -32,6 +32,7 @@ class PreOrderCreate(BaseModel):
     expected_arrival_date: date | None = None
     deposit_amount: Decimal = Field(default=Decimal("0"), ge=0)
     notes: str | None = None
+    created_at: datetime | None = None
     items: list[PreOrderItemCreate] = Field(min_length=1)
 
 
