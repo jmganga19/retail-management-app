@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { isAxiosError } from 'axios'
 import { createCustomer, getCustomers } from '../api/customers'
 import { createOrder } from '../api/orders'
 import { createPreorder } from '../api/preorders'
@@ -129,6 +130,17 @@ const getApiError = (error: unknown, fallback: string): string => {
   const maybe = error as { response?: { data?: { detail?: unknown } }; message?: string }
   const detail = maybe?.response?.data?.detail
   if (typeof detail === 'string') return detail
+  if (isAxiosError(error)) {
+    if (error.code === 'ECONNABORTED') {
+      return 'Request timed out after 8s. Backend may be busy; retry import, reduce batch size, or check API performance.'
+    }
+    if (!error.response) {
+      return 'Network/CORS error: request did not reach server. Check API base URL, backend status, and browser mixed-content/CORS blocks.'
+    }
+    if (error.response.status >= 500) {
+      return `Server error (${error.response.status}). Check backend logs and retry.`
+    }
+  }
   if (typeof maybe?.message === 'string' && maybe.message.trim().length > 0) return maybe.message
   return fallback
 }
