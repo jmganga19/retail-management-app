@@ -92,14 +92,14 @@ const defs: Record<MigrationKey, MigrationDef> = {
   preorders: {
     key: 'preorders',
     label: 'Pre-orders',
-    required: ['preorder_ref', 'customer_id', 'quantity', 'unit_price_tzs'],
+    required: ['preorder_ref', 'customer_name', 'quantity', 'unit_price_tzs'],
     aliases: {
       preorder_ref: ['reference', 'pre_order_ref', 'preorder_number'],
-      customer_id: ['customer'],
-      expected_arrival_date_yyyy_mm_dd: ['expected_arrival_date', 'arrival_date'],
+      customer_name: ['customer', 'customer_id', 'client_name', 'client'],
+      product_name: ['product', 'product_id', 'item_name', 'item'],
+      expected_arrival: ['expected_arrival_date', 'arrival_date', 'expected_arrival_date_yyyy_mm_dd', 'expected_time_of_arrival'],
       deposit_amount_tzs: ['deposit_amount', 'deposit'],
       unit_price_tzs: ['unit_price', 'price'],
-      product_id: ['product_id', 'product'],
       quantity: ['qty'],
     },
   },
@@ -256,7 +256,7 @@ export default function DataMigrationPage() {
           'unit_price_tzs',
         ],
         orders: ['discount_tzs', 'notes', 'product_id'],
-        preorders: ['expected_arrival_date_yyyy_mm_dd', 'deposit_amount_tzs', 'notes', 'product_id'],
+        preorders: ['expected_arrival', 'deposit_amount_tzs', 'notes', 'product_name'],
         stock_orders: ['product_id_optional', 'item_name', 'category_id_optional', 'notes'],
       } as Record<MigrationKey, string[]>)[kind],
     )
@@ -345,12 +345,17 @@ export default function DataMigrationPage() {
           }
         }
       }
-      if (kind === 'orders' || kind === 'preorders') {
+      if (kind === 'orders') {
         if (Number.isNaN(parsePositiveIntLike(row.customer_id))) issues.push({ rowNumber, message: 'customer_id must be positive integer' })
         const productId = parsePositiveIntLike(row.product_id)
         if (Number.isNaN(productId)) issues.push({ rowNumber, message: 'product_id is required' })
         if (Number.isNaN(parsePositiveIntLike(row.quantity))) issues.push({ rowNumber, message: 'quantity must be positive integer' })
         if (Number.isNaN(parseNumericLike(row.unit_price_tzs))) issues.push({ rowNumber, message: 'unit_price_tzs must be numeric' })
+      }
+      if (kind === 'preorders') {
+        if (!trimToUndefined(row.customer_name)) issues.push({ rowNumber, message: 'customer_name is required' })
+        if (Number.isNaN(parsePositiveIntLike(row.quantity))) issues.push({ rowNumber, message: 'quantity must be positive integer' })
+        if (Number.isNaN(parseNumericLike(row.unit_price_tzs)) || parseNumericLike(row.unit_price_tzs) <= 0) issues.push({ rowNumber, message: 'unit_price_tzs must be a positive number' })
       }
       if (kind === 'stock_orders') {
         const qty = parsePositiveIntLike(row.quantity)
@@ -590,6 +595,9 @@ export default function DataMigrationPage() {
     }
 
     if (kind === 'preorders') {
+      const allCustomers = await getCustomers()
+      const customerByName = new Map(allCustomers.map(c => [c.name.trim().toLowerCase(), c.id]))
+
       const groups = new Map<string, Record<string, string>[]>()
       mappedRows.forEach(row => {
         const ref = trimToUndefined(row.preorder_ref)
@@ -607,20 +615,25 @@ export default function DataMigrationPage() {
       for (const [ref, list] of groups) {
         try {
           const first = list[0]
-          const customerId = parsePositiveIntLike(first.customer_id)
-          if (Number.isNaN(customerId)) throw new Error('invalid customer_id')
+          const customerNameRaw = trimToUndefined(first.customer_name)
+          if (!customerNameRaw) throw new Error('customer_name is required')
+          const customerId = customerByName.get(customerNameRaw.trim().toLowerCase())
+          if (customerId === undefined) throw new Error(`Customer not found: "${customerNameRaw}"`)
 
           const items = list.map((row, idx) => {
-            const resolvedProductId = parsePositiveIntLike(row.product_id)
+            const productNameRaw = trimToUndefined(row.product_name)
+            const resolvedProductId = productNameRaw ? (productByName.get(productNameRaw.trim().toLowerCase()) ?? NaN) : NaN
             const quantity = parsePositiveIntLike(row.quantity)
             const unitPrice = parseNumericLike(row.unit_price_tzs)
-            if (Number.isNaN(resolvedProductId) || Number.isNaN(quantity) || Number.isNaN(unitPrice) || unitPrice <= 0) throw new Error(`invalid item fields at line ${idx + 1}`)
+            if (Number.isNaN(quantity) || Number.isNaN(unitPrice) || unitPrice <= 0) throw new Error(`invalid quantity or unit_price_tzs at line ${idx + 1}`)
+            if (!productNameRaw) throw new Error(`product_name is required at line ${idx + 1}`)
+            if (Number.isNaN(resolvedProductId)) throw new Error(`Product not found: "${productNameRaw}" at line ${idx + 1}`)
             return { product_id: resolvedProductId, quantity, unit_price: unitPrice }
           })
 
           await createPreorder({
             customer_id: customerId,
-            expected_arrival_date: trimToUndefined(first.expected_arrival_date_yyyy_mm_dd),
+            expected_arrival_date: trimToUndefined(first.expected_arrival),
             deposit_amount: Number.isNaN(parseNumericLike(first.deposit_amount_tzs)) ? undefined : parseNumericLike(first.deposit_amount_tzs),
             notes: trimToUndefined(first.notes),
             created_at: parseBatchCreatedAt(generalBatchMonth),

@@ -44,13 +44,14 @@ const templates: Record<TemplateKey, TemplateDef> = {
     filename: 'preorders_template.csv',
     headers: [
       'preorder_ref',
-      'customer_id',
-      'product_id',
+      'customer_name',
+      'product_name',
+      'expected_arrival',
       'quantity',
       'unit_price_tzs',
       'deposit_amount_tzs',
     ],
-    sampleRows: [['PRE-001', '1', '12', '1', '120000', '30000']],
+    sampleRows: [['PRE-001', 'Amina Said', 'Cucci Oud', '2026-06-15', '1', '120000', '30000']],
   },
   customers: {
     filename: 'customers_template.csv',
